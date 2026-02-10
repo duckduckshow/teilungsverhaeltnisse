@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – langsam & sichtbar (Zahlen in den Teilen)</title>
+<title>Teilungsverhältnisse – Aufteilen im Verhältnis (Animation ohne Erklärungstext)</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
   body { margin:0; background:#f4f4f4; display:flex; justify-content:center; }
   .app{
-    background:#fff; max-width: 940px; width:100%;
+    background:#fff; max-width: 980px; width:100%;
     margin:12px; padding:12px; border-radius:10px;
     box-shadow:0 2px 8px rgba(0,0,0,.08);
   }
@@ -53,18 +53,19 @@
     --A: rgba(255, 120, 120, .75);  /* A rot */
     --B: rgba(120, 170, 255, .75);  /* B blau */
     --outline:#333;
-    --glow: rgba(255, 215, 0, .9);  /* gelb */
+    --glow: rgba(255, 215, 0, .95);  /* gelb */
   }
   .visualRow { margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
   .vizCard{
-    flex:1 1 520px;
+    flex:1 1 620px;
     border:1px solid #e5e5e5; border-radius:12px; padding:10px;
     background:#fcfcfc;
   }
   .vizTitle{ font-weight:900; margin-bottom:8px; font-size:13px; color:#222; }
+
   .barWrap{ position:relative; }
   .bar{
-    width:100%; height:62px;
+    width:100%; height:64px;
     border:2px solid var(--outline); border-radius:14px;
     overflow:hidden; display:flex; background:#fff;
   }
@@ -80,6 +81,7 @@
   .part:last-child{ border-right:none; }
   .partA{ background:var(--A); }
   .partB{ background:var(--B); }
+
   .part.gray{ filter: grayscale(.55) brightness(.92); opacity:.9; }
 
   .part.highlight{
@@ -89,10 +91,11 @@
     filter: brightness(1.05);
     z-index:1;
   }
+
   .part .num{
     padding:2px 10px;
     border-radius:999px;
-    background: rgba(255,255,255,.75);
+    background: rgba(255,255,255,.78);
     border:1px solid rgba(0,0,0,.25);
     min-width:34px;
     text-align:center;
@@ -123,33 +126,35 @@
   .dotA{ background:var(--A); }
   .dotB{ background:var(--B); }
 
-  /* ===== Erklärung ===== */
-  .help{
-    margin-top:10px; padding:10px;
-    background:#fafafa; border:1px solid #eee; border-radius:12px;
-    font-size:13px; color:#333;
-    display:none;
-  }
-  .help b { font-weight:900; }
-  .stepsBox{
+  /* ===== Animation: Frage + Rechnung (overlay) ===== */
+  .overlay{
     margin-top:10px;
     border:1px solid #eee;
     border-radius:12px;
     background:#fff;
     padding:10px;
-  }
-  .stepLine{
     display:none;
+  }
+  .overlay.show{ display:block; }
+
+  .qLine{
+    font-weight:1000;
+    font-size:14px;
+    margin-bottom:6px;
+    color:#111;
+  }
+  .eqLine{
+    font-weight:1000;
+    font-size:14px;
     padding:8px 10px;
     border-radius:12px;
     background:#fafafa;
     border:1px solid #eee;
-    margin-top:8px;
-    font-size:13px;
-    font-weight:800;
+    display:inline-block;
   }
-  .stepLine.show{ display:block; }
-  .miniNote{ font-weight:650; color:#444; margin-top:6px; font-size:12px; }
+  .eqLine .hl{ background: rgba(255,215,0,.25); padding:0 4px; border-radius:6px; }
+
+  .spacer{ height:6px; }
 </style>
 </head>
 
@@ -169,10 +174,14 @@
 
     <div id="visual" class="visualRow" style="display:none;"></div>
 
+    <div id="overlay" class="overlay">
+      <div class="qLine" id="qLine"></div>
+      <div class="eqLine" id="eqLine"></div>
+    </div>
+
     <div class="prompt" id="prompt" style="display:none;"></div>
     <div id="answers" class="answers"></div>
 
-    <div class="help" id="help"></div>
     <div class="feedback" id="feedback"></div>
 
     <div class="controls">
@@ -234,7 +243,7 @@ function renderBarModel(container, a, b, nameA="A", nameB="B"){
         <div class="bar" id="bar">
           ${parts.map((p,idx) => `
             <div class="part ${p.cls}" data-idx="${idx}" style="width:${(100/sum).toFixed(3)}%">
-              <div class="num" data-num="${idx}"></div>
+              <div class="num"></div>
             </div>
           `).join("")}
         </div>
@@ -247,8 +256,9 @@ function renderBarModel(container, a, b, nameA="A", nameB="B"){
       </div>
     </div>
   `;
-  // Start: keine Zahlen in den Teilen
   setAllPartNumbers("");
+  clearPartStyles();
+  hideArrow();
 }
 
 /* ===== Pfeil positionieren ===== */
@@ -317,13 +327,33 @@ function setAllPartNumbers(val){
 }
 
 /* =========================
-   Langsame Animation (sichtbar!)
-   Phasen:
-   0) Ruhe
-   1) Teile zählen: 1..sum in die Teile schreiben (nacheinander)
-   2) 1 Teil zeigen: nur ein Teil farbig + Pfeil + Zahl pro Teil in ALLE Teile schreiben (z.B. 2 2 2 2 2)
-   3) A markieren
-   4) B markieren
+   Overlay (Frage + Gleichung)
+========================= */
+const overlay = document.getElementById("overlay");
+const qLine = document.getElementById("qLine");
+const eqLine = document.getElementById("eqLine");
+
+function showOverlay(question, equationHTML){
+  qLine.textContent = question;
+  eqLine.innerHTML = equationHTML;
+  overlay.classList.add("show");
+}
+function hideOverlay(){
+  overlay.classList.remove("show");
+  qLine.textContent = "";
+  eqLine.innerHTML = "";
+}
+
+/* =========================
+   Animation (genau wie gewünscht):
+   1) Frage: Auf wieviele Teile wird aufgeteilt?
+      Gleichung: a + b = gesamt
+   2) Frage: Wieviele <DING> sind ein Teil?
+      Gleichung: total : gesamt = onePart
+      Dann onePart in alle Teile schreiben (z.B. 2 2 2 2 2)
+   3) (optional, aber hilfreich) A-Teile kurz markieren
+   4) (optional) B-Teile kurz markieren
+   -> KEIN erklärender Textblock, nur diese zwei Fragen+Rechnungen
 ========================= */
 let timers = [];
 function stopAnimation(){
@@ -331,112 +361,94 @@ function stopAnimation(){
   timers = [];
   hideArrow();
   clearPartStyles();
+  hideOverlay();
 }
 
-function animateSolution(s){
+function animateAsRequested(s){
   stopAnimation();
 
   const [aa, bb] = simplifyRatio(s.a, s.b);
   const sum = aa + bb;
 
-  const calc = splitTotal(s.total, aa, bb); // onePart, A, B
+  const calc = splitTotal(s.total, aa, bb);
   const one = fmt(calc.onePart);
 
-  // Help-Box vorbereiten (ohne alles sofort)
-  helpEl.style.display = "block";
-  helpEl.innerHTML = `
-    <div><b>Schritt-für-Schritt (langsam):</b></div>
-    <div class="stepsBox">
-      <div class="stepLine" id="l0">0) Wir schauen zuerst nur auf das Verhältnis <b>${aa}:${bb}</b>.</div>
-      <div class="stepLine" id="l1">1) Teile zählen: <b>${aa} + ${bb} = ${sum}</b> Teile</div>
-      <div class="stepLine" id="l2">2) 1 Teil: <b>${s.total}${s.unit}</b> ÷ <b>${sum}</b> = <b>${one}${s.unit}</b> pro Teil</div>
-      <div class="stepLine" id="l3a">3a) ${s.nameA}: <b>${aa}</b> Teile → <b>${fmt(calc.A)}${s.unit}</b></div>
-      <div class="stepLine" id="l3b">3b) ${s.nameB}: <b>${bb}</b> Teile → <b>${fmt(calc.B)}${s.unit}</b></div>
-      <div class="miniNote">Du siehst: Erst Teile, dann „1 Teil“, dann A und B.</div>
-    </div>
-  `;
-
-  const l0 = document.getElementById("l0");
-  const l1 = document.getElementById("l1");
-  const l2 = document.getElementById("l2");
-  const l3a = document.getElementById("l3a");
-  const l3b = document.getElementById("l3b");
-
-  // Zeiten (bewusst langsam)
-  const t0 = 600;                 // Ruhe
-  const countDelay = 850;         // pro Teil beim Zählen
-  const afterCountPause = 900;
-  const showOnePartPause = 1600;
-  const showAfor = 1700;
-  const showBfor = 1700;
+  // Timing bewusst langsam
+  const pause0 = 650;
+  const showEq1For = 2400;
+  const showEq2For = 2600;
+  const fillDelay = 1100;
+  const showAFor = 1500;
+  const showBFor = 1500;
 
   // Phase 0: Ruhe
   timers.push(setTimeout(() => {
-    l0.classList.add("show");
+    hideOverlay();
     setAllPartNumbers("");
     clearPartStyles();
     hideArrow();
-  }, 50));
+  }, 40));
 
-  // Phase 1: Teile zählen (1..sum in die Teile schreiben)
+  // Phase 1: "Auf wieviele Teile?" + Gleichung a+b=gesamt
   timers.push(setTimeout(() => {
-    l1.classList.add("show");
-  }, t0));
+    // alles kurz hervorheben (wir schauen auf die Teile als Ganzes)
+    clearPartStyles();
+    for(let i=0;i<sum;i++) highlightIndex(i);
+    showOverlay(
+      "Auf wieviele Teile wird aufgeteilt?",
+      `<span class="hl">${aa}</span> + <span class="hl">${bb}</span> = <span class="hl">${sum}</span>`
+    );
+    // Pfeil wandert langsam über alle Teile (optional, aber sichtbar)
+    showArrowAtIndex(0);
+  }, pause0));
 
-  for(let i=0;i<sum;i++){
-    timers.push(setTimeout(() => {
-      clearPartStyles();
-      hideArrow();
-      // Nur aktuelles Teil hervorheben + Zahl setzen
-      setPartNumber(i, String(i+1));
-      highlightIndex(i);
-      showArrowAtIndex(i);
-    }, t0 + 300 + i*countDelay));
-
-    // Nach kurzer Zeit wieder "unhighlight" (damit es wirklich einzeln wirkt)
-    timers.push(setTimeout(() => {
-      unhighlightIndex(i);
-    }, t0 + 300 + i*countDelay + 500));
+  // Pfeil wandern (langsam, damit man merkt: "Teile zählen")
+  for(let i=1;i<sum;i++){
+    timers.push(setTimeout(() => showArrowAtIndex(i), pause0 + 700 + i*420));
   }
 
-  const endCount = t0 + 300 + (sum-1)*countDelay + afterCountPause;
-
-  // Phase 2: 1 Teil zeigen + überall pro-Teil-Zahl (z.B. 2 2 2 2 2)
+  // Phase 2: "Wieviele Dinge pro Teil?" + Gleichung total : sum = one
   timers.push(setTimeout(() => {
-    l2.classList.add("show");
     clearPartStyles();
-    // alle Zahlen löschen und dann "one" in alle Teile schreiben
+    // nur ein Teil als Beispiel fokussieren
+    grayAllExcept([0]);
+    highlightIndex(0);
+    showArrowAtIndex(0);
+
+    const thing = s.thingPlural; // z.B. "Bonbons"
+    showOverlay(
+      `Wieviele ${thing} sind ein Teil?`,
+      `<span class="hl">${s.total}</span> : <span class="hl">${sum}</span> = <span class="hl">${one}</span>${s.unit}`
+    );
+  }, pause0 + showEq1For));
+
+  // dann onePart in ALLE Teile schreiben (wie gewünscht)
+  timers.push(setTimeout(() => {
+    // alle wieder normal (nicht grau), aber wir schreiben überall den Wert rein
+    const bar = document.getElementById("bar");
+    if(bar){
+      [...bar.querySelectorAll(".part")].forEach(p => p.classList.remove("gray"));
+    }
+    clearPartStyles();
+    for(let i=0;i<sum;i++) highlightIndex(i);
     setAllPartNumbers(one);
-    // nur ein Teil farbig lassen (z.B. erstes A-Teil)
-    const focusIdx = 0;
-    grayAllExcept([focusIdx]);
-    highlightIndex(focusIdx);
-    showArrowAtIndex(focusIdx);
-  }, endCount));
-
-  const endOnePart = endCount + showOnePartPause;
-
-  // Phase 3a: A-Teile markieren
-  timers.push(setTimeout(() => {
-    l3a.classList.add("show");
     hideArrow();
+  }, pause0 + showEq1For + fillDelay));
+
+  // Phase 3: A-Teile markieren (kurz) – ohne Text
+  timers.push(setTimeout(() => {
     clearPartStyles();
-    // A-Indizes: 0..aa-1
     const Aidx = [];
     for(let i=0;i<aa;i++) Aidx.push(i);
     grayAllExcept(Aidx);
     Aidx.forEach(i => highlightIndex(i));
-    // Pfeil auf Mitte von A-Gruppe (wenn mehrere)
     const midA = Math.floor((aa-1)/2);
     showArrowAtIndex(midA);
-  }, endOnePart));
+    // Overlay bleibt beim "pro Teil" (kein neuer Text)
+  }, pause0 + showEq1For + fillDelay + showEq2For));
 
-  const endA = endOnePart + showAfor;
-
-  // Phase 3b: B-Teile markieren
+  // Phase 4: B-Teile markieren (kurz) – ohne Text
   timers.push(setTimeout(() => {
-    l3b.classList.add("show");
-    hideArrow();
     clearPartStyles();
     const Bidx = [];
     for(let i=aa;i<aa+bb;i++) Bidx.push(i);
@@ -444,100 +456,173 @@ function animateSolution(s){
     Bidx.forEach(i => highlightIndex(i));
     const midB = aa + Math.floor((bb-1)/2);
     showArrowAtIndex(midB);
-  }, endA));
+  }, pause0 + showEq1For + fillDelay + showEq2For + showAFor));
 
-  // Ende: alles normal
+  // Ende: alles normal, Overlay aus
   timers.push(setTimeout(() => {
     hideArrow();
     clearPartStyles();
-    grayAllExcept([...Array(sum).keys()]); // alle "keep" => keiner grau
-    // Trick: keep alle, also niemand grau
     const bar = document.getElementById("bar");
     if(bar){
       [...bar.querySelectorAll(".part")].forEach(p => p.classList.remove("gray"));
     }
-  }, endA + showBfor));
+    hideOverlay();
+  }, pause0 + showEq1For + fillDelay + showEq2For + showAFor + showBFor));
 }
 
 /* =========================
-   Aufgaben (mind. 10), langsam steigern
+   Aufgaben (Sachbeispiele, ausformuliert!)
+   - jede Aufgabe: "Ich habe ..." + "Ich teile ... im Verhältnis ... auf."
 ========================= */
-function mkShareMC({cat,title,total,unit,a,b,nameA,nameB,prompt,correctValue,distractors}){
+function mkStoryMC({cat,title,thingSingular,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors}){
+  // askFor: "A" oder "B" oder "beide" (nur A/B hier)
+  const question =
+    askFor === "A" ? `Wie viele ${thingPlural} bekommt ${nameA}?` :
+    askFor === "B" ? `Wie viele ${thingPlural} bekommt ${nameB}?` :
+    `Welche Aufteilung stimmt?`;
+
+  const text = `
+    <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
+    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf:</p>
+    <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
+  `;
+
   return {
     type:"mc",
     cat, title,
+    thingSingular, thingPlural,
     total, unit, a, b, nameA, nameB,
-    text: `<p>Es gibt <b>${total}${unit}</b>. Aufteilung im Verhältnis <b>${a}:${b}</b> (${nameA} : ${nameB}).</p>`,
-    prompt,
+    text,
+    prompt: question,
     answers: shuffle([
-      {t: correctValue + (unit||""), ok:true},
-      ...distractors.map(x => ({t: x + (unit||""), ok:false}))
+      {t: correctValue + unit, ok:true},
+      ...distractors.map(x => ({t: x + unit, ok:false}))
     ])
   };
 }
 
+function mkStoryYesNo({cat,title,thingPlural,total,unit,a,b,nameA,nameB,claimA,claimB,correctYes}){
+  const text = `
+    <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
+    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf:</p>
+    <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
+    <p>${nameA} bekommt ${claimA}${unit} und ${nameB} bekommt ${claimB}${unit}.</p>
+  `;
+  return {
+    type:"yesno",
+    cat, title,
+    thingPlural,
+    total, unit, a, b, nameA, nameB,
+    text,
+    prompt:"Stimmt das?",
+    correctYes
+  };
+}
+
+// Aufgaben bewusst: zuerst 2:3 mit 5, dann 2:3 mit 10, dann langsam weiter.
+// Alles ganzzahlig.
 const steps = [
   {
     type:"intro",
     cat:"Start",
-    title:"Was passiert bei einer Aufteilung im Verhältnis?",
+    title:"Aufteilen im Verhältnis",
     text: `
-      <p>Wir teilen ein Ganzes im Verhältnis <b>a:b</b>.</p>
-      <p>Das bedeutet: Das Ganze besteht aus <b>a+b</b> gleich großen Teilen.</p>
-      <p>Nach jeder Antwort läuft eine <b>langsame Animation</b>:</p>
-      <p>1) Teile werden gezählt (1,2,3,...)<br>
-      2) In jedem Teil steht dann „wie viel 1 Teil ist“ (z.B. 2,2,2,2,2)<br>
-      3) A-Teile werden markiert, dann B-Teile</p>
+      <p>Du bekommst gleich Sachaufgaben wie:</p>
+      <p><b>Ich habe 20 Bonbons.</b> Ich teile sie im Verhältnis <b>2:3</b> auf.</p>
+      <p>Nach deiner Antwort erklärt eine Animation alles – ohne Text-Erklärung.</p>
+      <p>Sie zeigt nur diese zwei Fragen + Rechnungen:</p>
+      <p>1) „Auf wieviele Teile wird aufgeteilt?“ → <b>a + b = gesamt</b><br>
+         2) „Wieviele Dinge sind ein Teil?“ → <b>Gesamt : Teile = pro Teil</b><br>
+      Dann steht „pro Teil“ in jedem Teil.</p>
     `
   },
 
-  mkShareMC({ cat:"Level 1", title:"Aufgabe 1", total:5,  unit:"",  a:2,b:3,nameA:"A",nameB:"B",
-    prompt:"Wie viele Bonbons bekommt A?", correctValue:"2", distractors:["3","1","5"] }),
+  mkStoryMC({ cat:"Level 1 – ganz leicht", title:"Aufgabe 1",
+    thingSingular:"Bonbon", thingPlural:"Bonbons", total:5, unit:"",
+    a:2,b:3, nameA:"Anna", nameB:"Ben",
+    askFor:"A",
+    correctValue:"2",
+    distractors:["3","1","5"]
+  }),
 
-  mkShareMC({ cat:"Level 1", title:"Aufgabe 2", total:10, unit:"",  a:2,b:3,nameA:"A",nameB:"B",
-    prompt:"Wie viele Bonbons bekommt B?", correctValue:"6", distractors:["4","5","8"] }),
+  mkStoryMC({ cat:"Level 1 – gleiches Verhältnis", title:"Aufgabe 2",
+    thingSingular:"Bonbon", thingPlural:"Bonbons", total:10, unit:"",
+    a:2,b:3, nameA:"Anna", nameB:"Ben",
+    askFor:"B",
+    correctValue:"6",
+    distractors:["4","5","8"]
+  }),
 
-  {
-    type:"mc", cat:"Level 1", title:"Aufgabe 3",
-    total:15, unit:"", a:2,b:3,nameA:"A",nameB:"B",
-    text:`<p>Es gibt <b>15 Bonbons</b>. Aufteilung <b>2:3</b> (A : B).</p>`,
-    prompt:"Welche Aufteilung stimmt?",
-    answers: shuffle([
-      {t:"A: 6   |   B: 9", ok:true},
-      {t:"A: 5   |   B: 10", ok:false},
-      {t:"A: 7   |   B: 8", ok:false},
-      {t:"A: 3   |   B: 12", ok:false}
-    ])
-  },
+  mkStoryMC({ cat:"Level 1 – Festigung", title:"Aufgabe 3",
+    thingSingular:"Sticker", thingPlural:"Sticker", total:15, unit:"",
+    a:2,b:3, nameA:"A", nameB:"B",
+    askFor:"A",
+    correctValue:"6",
+    distractors:["9","5","8"]
+  }),
 
-  mkShareMC({ cat:"Level 1", title:"Aufgabe 4", total:20, unit:"", a:2,b:3,nameA:"A",nameB:"B",
-    prompt:"Wie viele Sticker bekommt A?", correctValue:"8", distractors:["12","10","6"] }),
+  mkStoryMC({ cat:"Level 1 – Festigung", title:"Aufgabe 4",
+    thingSingular:"Sticker", thingPlural:"Sticker", total:20, unit:"",
+    a:2,b:3, nameA:"A", nameB:"B",
+    askFor:"A",
+    correctValue:"8",
+    distractors:["12","10","6"]
+  }),
 
-  {
-    type:"yesno", cat:"Level 1", title:"Aufgabe 5",
-    total:25, unit:"", a:2,b:3,nameA:"A",nameB:"B",
-    text:`<p>Es gibt <b>25 Murmeln</b>. Aufteilung <b>2:3</b> (A : B).</p><p>A bekommt 10 und B bekommt 15.</p>`,
-    prompt:"Stimmt das?",
+  mkStoryYesNo({ cat:"Level 1 – Kontrolle", title:"Aufgabe 5",
+    thingPlural:"Murmeln", total:25, unit:"",
+    a:2,b:3, nameA:"A", nameB:"B",
+    claimA:10, claimB:15,
     correctYes:true
-  },
+  }),
 
-  mkShareMC({ cat:"Level 2", title:"Aufgabe 6", total:25, unit:" €", a:1,b:4,nameA:"A",nameB:"B",
-    prompt:"Wie viele Euro bekommt A?", correctValue:"5", distractors:["10","20","4"] }),
+  mkStoryMC({ cat:"Level 2 – neues Verhältnis", title:"Aufgabe 6",
+    thingSingular:"Euro", thingPlural:"Euro", total:25, unit:" €",
+    a:1,b:4, nameA:"A", nameB:"B",
+    askFor:"A",
+    correctValue:"5",
+    distractors:["10","20","4"]
+  }),
 
-  mkShareMC({ cat:"Level 2", title:"Aufgabe 7", total:25, unit:"", a:3,b:2,nameA:"A",nameB:"B",
-    prompt:"Wie viele Punkte bekommt B?", correctValue:"10", distractors:["15","12","8"] }),
+  mkStoryMC({ cat:"Level 2 – neues Verhältnis", title:"Aufgabe 7",
+    thingSingular:"Punkt", thingPlural:"Punkte", total:25, unit:"",
+    a:3,b:2, nameA:"A", nameB:"B",
+    askFor:"B",
+    correctValue:"10",
+    distractors:["15","12","8"]
+  }),
 
-  mkShareMC({ cat:"Level 3", title:"Aufgabe 8", total:50, unit:"", a:4,b:6,nameA:"A",nameB:"B",
-    prompt:"Wie viele Bonbons bekommt A?", correctValue:"20", distractors:["30","25","10"] }),
+  mkStoryMC({ cat:"Level 3 – Verhältnis kürzen", title:"Aufgabe 8",
+    thingSingular:"Bonbon", thingPlural:"Bonbons", total:50, unit:"",
+    a:4,b:6, nameA:"A", nameB:"B",
+    askFor:"A",
+    correctValue:"20",
+    distractors:["30","25","10"]
+  }),
 
-  mkShareMC({ cat:"Level 3", title:"Aufgabe 9", total:56, unit:" cm", a:5,b:2,nameA:"Teil A",nameB:"Teil B",
-    prompt:"Wie lang ist Teil B?", correctValue:"16", distractors:["40","14","12"] }),
+  mkStoryMC({ cat:"Level 3 – mehr Teile", title:"Aufgabe 9",
+    thingSingular:"Zentimeter", thingPlural:"cm", total:56, unit:" cm",
+    a:5,b:2, nameA:"Teil A", nameB:"Teil B",
+    askFor:"B",
+    correctValue:"16",
+    distractors:["40","14","12"]
+  }),
 
-  mkShareMC({ cat:"Level 4", title:"Aufgabe 10", total:60, unit:" €", a:2,b:3,nameA:"A",nameB:"B",
-    prompt:"Wie viele Euro bekommt B?", correctValue:"36", distractors:["24","30","40"] }),
+  mkStoryMC({ cat:"Level 4 – Transfer", title:"Aufgabe 10",
+    thingSingular:"Euro", thingPlural:"Euro", total:60, unit:" €",
+    a:2,b:3, nameA:"Anna", nameB:"Ben",
+    askFor:"B",
+    correctValue:"36",
+    distractors:["24","30","40"]
+  }),
 
-  mkShareMC({ cat:"Level 4", title:"Aufgabe 11", total:30, unit:"", a:1,b:2,nameA:"A",nameB:"B",
-    prompt:"Wie viele Karten bekommt A?", correctValue:"10", distractors:["20","15","5"] })
+  mkStoryMC({ cat:"Level 4 – Festigung", title:"Aufgabe 11",
+    thingSingular:"Karte", thingPlural:"Karten", total:30, unit:"",
+    a:1,b:2, nameA:"A", nameB:"B",
+    askFor:"A",
+    correctValue:"10",
+    distractors:["20","15","5"]
+  })
 ];
 
 /* =========================
@@ -551,7 +636,6 @@ const catEl = document.getElementById("cat");
 const titleEl = document.getElementById("title");
 const textEl = document.getElementById("text");
 const promptEl = document.getElementById("prompt");
-const helpEl = document.getElementById("help");
 const answersEl = document.getElementById("answers");
 const feedbackEl = document.getElementById("feedback");
 const nextBtn = document.getElementById("nextBtn");
@@ -573,8 +657,7 @@ function clearScreen(){
   promptEl.style.display = "none";
   promptEl.textContent = "";
 
-  helpEl.style.display = "none";
-  helpEl.innerHTML = "";
+  hideOverlay();
 }
 
 function renderStep(){
@@ -596,7 +679,7 @@ function renderStep(){
     return;
   }
 
-  // Visual
+  // Visual (immer)
   visualEl.style.display = "flex";
   renderBarModel(visualEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
 
@@ -606,8 +689,8 @@ function renderStep(){
 }
 
 function afterAnswer(s){
-  // animierte Erklärung
-  animateSolution(s);
+  // Animation = Erklärung
+  animateAsRequested(s);
   nextBtn.disabled = false;
 }
 
