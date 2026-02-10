@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – Aufteilen im Verhältnis (Animation ohne Erklärungstext)</title>
+<title>Teilungsverhältnisse – Aufteilen im Verhältnis (Schritte + ruhige Balken-Animation)</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
   body { margin:0; background:#f4f4f4; display:flex; justify-content:center; }
   .app{
-    background:#fff; max-width: 980px; width:100%;
+    background:#fff; max-width: 1020px; width:100%;
     margin:12px; padding:12px; border-radius:10px;
     box-shadow:0 2px 8px rgba(0,0,0,.08);
   }
@@ -50,111 +50,132 @@
 
   /* ===== Visual ===== */
   :root{
-    --A: rgba(255, 120, 120, .75);  /* A rot */
-    --B: rgba(120, 170, 255, .75);  /* B blau */
+    --A: rgba(255, 120, 120, .75);
+    --B: rgba(120, 170, 255, .75);
     --outline:#333;
-    --glow: rgba(255, 215, 0, .95);  /* gelb */
+    --glow: rgba(255, 215, 0, .95);
   }
+
   .visualRow { margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
   .vizCard{
     flex:1 1 620px;
-    border:1px solid #e5e5e5; border-radius:12px; padding:10px;
+    border:1px solid #e5e5e5; border-radius:12px; padding:12px;
     background:#fcfcfc;
   }
-  .vizTitle{ font-weight:900; margin-bottom:8px; font-size:13px; color:#222; }
+  .vizTitle{ font-weight:900; margin-bottom:10px; font-size:13px; color:#222; }
 
   .barWrap{ position:relative; }
   .bar{
-    width:100%; height:64px;
+    width:100%; height:70px;
     border:2px solid var(--outline); border-radius:14px;
     overflow:hidden; display:flex; background:#fff;
+    transition: outline .25s ease;
   }
+  .bar.completed{
+    outline: 5px solid var(--glow);
+    outline-offset: 2px;
+  }
+
   .part{
     height:100%;
     border-right:1px solid rgba(0,0,0,.25);
     display:flex; align-items:center; justify-content:center;
-    font-weight:900; font-size:16px; color:#111;
+    font-weight:900; font-size:18px; color:#111;
     user-select:none;
     position:relative;
-    transition: transform .25s ease, filter .25s ease, outline .25s ease, opacity .25s ease;
+    transition: outline .25s ease, transform .25s ease, filter .25s ease;
   }
   .part:last-child{ border-right:none; }
   .partA{ background:var(--A); }
   .partB{ background:var(--B); }
 
-  .part.gray{ filter: grayscale(.55) brightness(.92); opacity:.9; }
-
   .part.highlight{
-    transform: translateY(-2px) scale(1.03);
-    outline: 4px solid var(--glow);
-    outline-offset:-4px;
-    filter: brightness(1.05);
+    outline: 5px solid var(--glow);
+    outline-offset: -5px;
+    transform: translateY(-1px) scale(1.01);
+    filter: brightness(1.03);
     z-index:1;
   }
 
   .part .num{
-    padding:2px 10px;
+    padding:3px 12px;
     border-radius:999px;
-    background: rgba(255,255,255,.78);
+    background: rgba(255,255,255,.80);
     border:1px solid rgba(0,0,0,.25);
-    min-width:34px;
+    min-width:40px;
     text-align:center;
   }
 
-  /* Pfeil */
-  .arrow{
-    position:absolute;
-    top:-22px;
-    width:0; height:0;
-    border-left:10px solid transparent;
-    border-right:10px solid transparent;
-    border-top:16px solid #111;
-    filter: drop-shadow(0 2px 0 rgba(0,0,0,.15));
-    opacity:0;
-    transition: opacity .25s ease, left .25s ease;
-  }
-  .arrow.show{ opacity:1; }
-
-  .legend{ margin-top:8px; font-size:12px; color:#444; line-height:1.25; }
+  .legend{ margin-top:10px; font-size:12px; color:#444; line-height:1.25; }
   .pill{
     display:inline-flex; align-items:center; gap:6px;
-    padding:3px 10px; border-radius:999px;
+    padding:4px 12px; border-radius:999px;
     border:1px solid #ddd; background:#fff; font-weight:900;
-    margin-right:8px; margin-bottom:6px;
+    margin-right:10px; margin-bottom:6px;
   }
   .dot{ width:10px; height:10px; border-radius:999px; display:inline-block; border:1px solid rgba(0,0,0,.25); }
   .dotA{ background:var(--A); }
   .dotB{ background:var(--B); }
 
-  /* ===== Animation: Frage + Rechnung (overlay) ===== */
-  .overlay{
-    margin-top:10px;
-    border:1px solid #eee;
-    border-radius:12px;
+  /* ===== Schritte (größer, nebeneinander, bleiben stehen) ===== */
+  .stepsPanel{
+    flex:1 1 340px;
+    border:1px solid #e5e5e5; border-radius:12px;
     background:#fff;
-    padding:10px;
-    display:none;
+    padding:12px;
+    min-width:320px;
   }
-  .overlay.show{ display:block; }
-
-  .qLine{
+  .stepsTitle{
     font-weight:1000;
+    font-size:14px;
+    margin-bottom:10px;
+  }
+  .stepsGrid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+  }
+  .stepBox{
+    border:1px solid #eee;
+    background:#fafafa;
+    border-radius:12px;
+    padding:10px;
+    min-height:86px;
+  }
+  .stepNr{
+    font-weight:1000;
+    font-size:13px;
+    margin-bottom:6px;
+  }
+  .stepText{
+    font-weight:900;
     font-size:14px;
     margin-bottom:6px;
-    color:#111;
   }
-  .eqLine{
-    font-weight:1000;
-    font-size:14px;
-    padding:8px 10px;
-    border-radius:12px;
-    background:#fafafa;
-    border:1px solid #eee;
+  .eq{
     display:inline-block;
+    font-weight:1000;
+    font-size:18px;
+    padding:6px 10px;
+    border-radius:12px;
+    background:#fff;
+    border:1px solid #ddd;
   }
-  .eqLine .hl{ background: rgba(255,215,0,.25); padding:0 4px; border-radius:6px; }
+  .eq .hl{
+    background: rgba(255,215,0,.25);
+    padding:0 4px;
+    border-radius:6px;
+  }
+  .noteSmall{
+    font-size:12px;
+    color:#555;
+    margin-top:8px;
+    line-height:1.25;
+    font-weight:700;
+  }
 
-  .spacer{ height:6px; }
+  /* Intro: keine Visuals */
+  .hide { display:none !important; }
 </style>
 </head>
 
@@ -172,11 +193,9 @@
 
     <div class="text" id="text"></div>
 
-    <div id="visual" class="visualRow" style="display:none;"></div>
-
-    <div id="overlay" class="overlay">
-      <div class="qLine" id="qLine"></div>
-      <div class="eqLine" id="eqLine"></div>
+    <div id="visualRow" class="visualRow" style="display:none;">
+      <div id="visual" class="vizCard"></div>
+      <div id="stepsPanel" class="stepsPanel"></div>
     </div>
 
     <div class="prompt" id="prompt" style="display:none;"></div>
@@ -222,9 +241,9 @@ function fmt(x){
 }
 
 /* =========================
-   Visual: Balkenmodell + Pfeil
+   Visual: Balkenmodell (keine Animation am Anfang)
 ========================= */
-function renderBarModel(container, a, b, nameA="A", nameB="B"){
+function renderBarModel(cardEl, a, b, nameA="A", nameB="B"){
   const [aa, bb] = simplifyRatio(a,b);
   const sum = aa + bb;
 
@@ -234,263 +253,166 @@ function renderBarModel(container, a, b, nameA="A", nameB="B"){
     parts.push({label: isA ? nameA : nameB, cls: isA ? "partA" : "partB"});
   }
 
-  container.innerHTML = `
-    <div class="vizCard">
-      <div class="vizTitle">Balkenmodell: Verhältnis <b>${aa}:${bb}</b></div>
-
-      <div class="barWrap">
-        <div class="arrow" id="arrow"></div>
-        <div class="bar" id="bar">
-          ${parts.map((p,idx) => `
-            <div class="part ${p.cls}" data-idx="${idx}" style="width:${(100/sum).toFixed(3)}%">
-              <div class="num"></div>
-            </div>
-          `).join("")}
-        </div>
+  cardEl.innerHTML = `
+    <div class="vizTitle">Balkenmodell: Verhältnis <b>${aa}:${bb}</b></div>
+    <div class="barWrap">
+      <div class="bar" id="bar">
+        ${parts.map((p,idx) => `
+          <div class="part ${p.cls}" data-idx="${idx}" style="width:${(100/sum).toFixed(3)}%">
+            <div class="num"></div>
+          </div>
+        `).join("")}
       </div>
+    </div>
 
-      <div class="legend">
-        <span class="pill"><span class="dot dotA"></span>${nameA}: ${aa} Teile</span>
-        <span class="pill"><span class="dot dotB"></span>${nameB}: ${bb} Teile</span><br>
-        Insgesamt: <b>${sum}</b> gleich große Teile
-      </div>
+    <div class="legend">
+      <span class="pill"><span class="dot dotA"></span>${nameA}: ${aa} Teile</span>
+      <span class="pill"><span class="dot dotB"></span>${nameB}: ${bb} Teile</span><br>
+      Insgesamt: <b>${sum}</b> gleich große Teile
     </div>
   `;
   setAllPartNumbers("");
-  clearPartStyles();
-  hideArrow();
+  clearHighlights();
+  setBarCompleted(false);
 }
 
-/* ===== Pfeil positionieren ===== */
-function showArrowAtIndex(index){
-  const bar = document.getElementById("bar");
-  const arrow = document.getElementById("arrow");
-  if(!bar || !arrow) return;
-
-  const part = bar.querySelector(`.part[data-idx="${index}"]`);
-  if(!part) return;
-
-  const rectBar = bar.getBoundingClientRect();
-  const rectPart = part.getBoundingClientRect();
-  const center = rectPart.left - rectBar.left + rectPart.width/2;
-
-  arrow.style.left = `calc(${center}px - 10px)`;
-  arrow.classList.add("show");
-}
-function hideArrow(){
-  const arrow = document.getElementById("arrow");
-  if(!arrow) return;
-  arrow.classList.remove("show");
-}
-
-/* ===== Teile stylen ===== */
-function clearPartStyles(){
+/* ===== Balken/Teile steuern ===== */
+function clearHighlights(){
   const bar = document.getElementById("bar");
   if(!bar) return;
-  [...bar.querySelectorAll(".part")].forEach(p => {
-    p.classList.remove("highlight","gray");
-  });
+  [...bar.querySelectorAll(".part")].forEach(p => p.classList.remove("highlight"));
 }
-function grayAllExcept(indicesToKeep){
-  const keep = new Set(indicesToKeep);
-  const bar = document.getElementById("bar");
-  if(!bar) return;
-  [...bar.querySelectorAll(".part")].forEach(p => {
-    const idx = Number(p.dataset.idx);
-    p.classList.toggle("gray", !keep.has(idx));
-  });
-}
-function highlightIndex(i){
+function highlightPart(i){
   const bar = document.getElementById("bar");
   if(!bar) return;
   const p = bar.querySelector(`.part[data-idx="${i}"]`);
   if(p) p.classList.add("highlight");
 }
-function unhighlightIndex(i){
+function unhighlightPart(i){
   const bar = document.getElementById("bar");
   if(!bar) return;
   const p = bar.querySelector(`.part[data-idx="${i}"]`);
   if(p) p.classList.remove("highlight");
-}
-
-/* ===== Zahlen in den Teilen ===== */
-function setPartNumber(i, val){
-  const bar = document.getElementById("bar");
-  if(!bar) return;
-  const box = bar.querySelector(`.part[data-idx="${i}"] .num`);
-  if(box) box.textContent = val;
 }
 function setAllPartNumbers(val){
   const bar = document.getElementById("bar");
   if(!bar) return;
   [...bar.querySelectorAll(".part .num")].forEach(n => n.textContent = val);
 }
+function setBarCompleted(on){
+  const bar = document.getElementById("bar");
+  if(!bar) return;
+  bar.classList.toggle("completed", !!on);
+}
 
 /* =========================
-   Overlay (Frage + Gleichung)
+   Schritte-Panel (bleibt stehen)
+   - Schritt 1: a + b = Gesamtteile
+   - Schritt 2: total : Gesamtteile = pro Teil
 ========================= */
-const overlay = document.getElementById("overlay");
-const qLine = document.getElementById("qLine");
-const eqLine = document.getElementById("eqLine");
+function renderStepsPanel(panelEl, s){
+  const [aa, bb] = simplifyRatio(s.a, s.b);
+  const sum = aa + bb;
+  const calc = splitTotal(s.total, aa, bb);
+  const one = fmt(calc.onePart);
 
-function showOverlay(question, equationHTML){
-  qLine.textContent = question;
-  eqLine.innerHTML = equationHTML;
-  overlay.classList.add("show");
-}
-function hideOverlay(){
-  overlay.classList.remove("show");
-  qLine.textContent = "";
-  eqLine.innerHTML = "";
+  const thing = s.thingPlural;
+  const unit = s.unit || "";
+
+  panelEl.innerHTML = `
+    <div class="stepsTitle">Schritte (bleiben stehen)</div>
+    <div class="stepsGrid">
+      <div class="stepBox">
+        <div class="stepNr">Schritt 1</div>
+        <div class="stepText">Auf wieviele Teile wird aufgeteilt?</div>
+        <div class="eq"><span class="hl">${aa}</span> + <span class="hl">${bb}</span> = <span class="hl">${sum}</span></div>
+      </div>
+
+      <div class="stepBox">
+        <div class="stepNr">Schritt 2</div>
+        <div class="stepText">Wieviele ${thing} sind ein Teil?</div>
+        <div class="eq"><span class="hl">${s.total}</span> : <span class="hl">${sum}</span> = <span class="hl">${one}</span>${unit}</div>
+      </div>
+    </div>
+    <div class="noteSmall">
+      Danach schreibt die Animation den Wert „pro Teil“ in jedes Teil.
+    </div>
+  `;
 }
 
 /* =========================
-   Animation (genau wie gewünscht):
-   1) Frage: Auf wieviele Teile wird aufgeteilt?
-      Gleichung: a + b = gesamt
-   2) Frage: Wieviele <DING> sind ein Teil?
-      Gleichung: total : gesamt = onePart
-      Dann onePart in alle Teile schreiben (z.B. 2 2 2 2 2)
-   3) (optional, aber hilfreich) A-Teile kurz markieren
-   4) (optional) B-Teile kurz markieren
-   -> KEIN erklärender Textblock, nur diese zwei Fragen+Rechnungen
+   Animation (nur das Eintragen pro Teil)
+   - für jedes Teil: gelb umranden + Zahl eintragen
+   - am Ende: ganzer Balken gelb umranden
 ========================= */
 let timers = [];
 function stopAnimation(){
   timers.forEach(t => clearTimeout(t));
   timers = [];
-  hideArrow();
-  clearPartStyles();
-  hideOverlay();
+  clearHighlights();
+  setBarCompleted(false);
 }
 
-function animateAsRequested(s){
+function animateFillPerPart(s){
   stopAnimation();
 
   const [aa, bb] = simplifyRatio(s.a, s.b);
   const sum = aa + bb;
-
   const calc = splitTotal(s.total, aa, bb);
   const one = fmt(calc.onePart);
 
-  // Timing bewusst langsam
-  const pause0 = 650;
-  const showEq1For = 2400;
-  const showEq2For = 2600;
-  const fillDelay = 1100;
-  const showAFor = 1500;
-  const showBFor = 1500;
+  setAllPartNumbers(""); // start leer
+  clearHighlights();
+  setBarCompleted(false);
 
-  // Phase 0: Ruhe
-  timers.push(setTimeout(() => {
-    hideOverlay();
-    setAllPartNumbers("");
-    clearPartStyles();
-    hideArrow();
-  }, 40));
+  const startDelay = 500;   // Pause, damit man "fertig" ist mit Antwort
+  const perPartDelay = 850; // bewusst ruhig
+  const holdAfter = 700;
 
-  // Phase 1: "Auf wieviele Teile?" + Gleichung a+b=gesamt
-  timers.push(setTimeout(() => {
-    // alles kurz hervorheben (wir schauen auf die Teile als Ganzes)
-    clearPartStyles();
-    for(let i=0;i<sum;i++) highlightIndex(i);
-    showOverlay(
-      "Auf wieviele Teile wird aufgeteilt?",
-      `<span class="hl">${aa}</span> + <span class="hl">${bb}</span> = <span class="hl">${sum}</span>`
-    );
-    // Pfeil wandert langsam über alle Teile (optional, aber sichtbar)
-    showArrowAtIndex(0);
-  }, pause0));
+  for(let i=0;i<sum;i++){
+    timers.push(setTimeout(() => {
+      clearHighlights();
+      highlightPart(i);
+      // Zahl eintragen (so wie gewünscht)
+      setAllPartNumbers("");     // optional: leer lassen...
+      // ...oder: schon eingetragene stehen lassen? -> wir lassen sie stehen:
+      // Daher NICHT alles löschen, sondern nur den aktuellen Teil füllen:
+      const bar = document.getElementById("bar");
+      if(bar){
+        const box = bar.querySelector(`.part[data-idx="${i}"] .num`);
+        if(box) box.textContent = one;
+      }
+    }, startDelay + i*perPartDelay));
 
-  // Pfeil wandern (langsam, damit man merkt: "Teile zählen")
-  for(let i=1;i<sum;i++){
-    timers.push(setTimeout(() => showArrowAtIndex(i), pause0 + 700 + i*420));
+    timers.push(setTimeout(() => {
+      unhighlightPart(i);
+    }, startDelay + i*perPartDelay + 520));
   }
 
-  // Phase 2: "Wieviele Dinge pro Teil?" + Gleichung total : sum = one
   timers.push(setTimeout(() => {
-    clearPartStyles();
-    // nur ein Teil als Beispiel fokussieren
-    grayAllExcept([0]);
-    highlightIndex(0);
-    showArrowAtIndex(0);
-
-    const thing = s.thingPlural; // z.B. "Bonbons"
-    showOverlay(
-      `Wieviele ${thing} sind ein Teil?`,
-      `<span class="hl">${s.total}</span> : <span class="hl">${sum}</span> = <span class="hl">${one}</span>${s.unit}`
-    );
-  }, pause0 + showEq1For));
-
-  // dann onePart in ALLE Teile schreiben (wie gewünscht)
-  timers.push(setTimeout(() => {
-    // alle wieder normal (nicht grau), aber wir schreiben überall den Wert rein
-    const bar = document.getElementById("bar");
-    if(bar){
-      [...bar.querySelectorAll(".part")].forEach(p => p.classList.remove("gray"));
-    }
-    clearPartStyles();
-    for(let i=0;i<sum;i++) highlightIndex(i);
-    setAllPartNumbers(one);
-    hideArrow();
-  }, pause0 + showEq1For + fillDelay));
-
-  // Phase 3: A-Teile markieren (kurz) – ohne Text
-  timers.push(setTimeout(() => {
-    clearPartStyles();
-    const Aidx = [];
-    for(let i=0;i<aa;i++) Aidx.push(i);
-    grayAllExcept(Aidx);
-    Aidx.forEach(i => highlightIndex(i));
-    const midA = Math.floor((aa-1)/2);
-    showArrowAtIndex(midA);
-    // Overlay bleibt beim "pro Teil" (kein neuer Text)
-  }, pause0 + showEq1For + fillDelay + showEq2For));
-
-  // Phase 4: B-Teile markieren (kurz) – ohne Text
-  timers.push(setTimeout(() => {
-    clearPartStyles();
-    const Bidx = [];
-    for(let i=aa;i<aa+bb;i++) Bidx.push(i);
-    grayAllExcept(Bidx);
-    Bidx.forEach(i => highlightIndex(i));
-    const midB = aa + Math.floor((bb-1)/2);
-    showArrowAtIndex(midB);
-  }, pause0 + showEq1For + fillDelay + showEq2For + showAFor));
-
-  // Ende: alles normal, Overlay aus
-  timers.push(setTimeout(() => {
-    hideArrow();
-    clearPartStyles();
-    const bar = document.getElementById("bar");
-    if(bar){
-      [...bar.querySelectorAll(".part")].forEach(p => p.classList.remove("gray"));
-    }
-    hideOverlay();
-  }, pause0 + showEq1For + fillDelay + showEq2For + showAFor + showBFor));
+    clearHighlights();
+    setBarCompleted(true);
+  }, startDelay + sum*perPartDelay + holdAfter));
 }
 
 /* =========================
-   Aufgaben (Sachbeispiele, ausformuliert!)
-   - jede Aufgabe: "Ich habe ..." + "Ich teile ... im Verhältnis ... auf."
+   Aufgaben (Sachbeispiele, ausformuliert)
 ========================= */
-function mkStoryMC({cat,title,thingSingular,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors}){
-  // askFor: "A" oder "B" oder "beide" (nur A/B hier)
+function mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors}){
   const question =
     askFor === "A" ? `Wie viele ${thingPlural} bekommt ${nameA}?` :
-    askFor === "B" ? `Wie viele ${thingPlural} bekommt ${nameB}?` :
-    `Welche Aufteilung stimmt?`;
+    `Wie viele ${thingPlural} bekommt ${nameB}?`;
 
   const text = `
     <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
-    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf:</p>
+    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf.</p>
     <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
   `;
 
   return {
     type:"mc",
     cat, title,
-    thingSingular, thingPlural,
+    thingPlural,
     total, unit, a, b, nameA, nameB,
     text,
     prompt: question,
@@ -504,7 +426,7 @@ function mkStoryMC({cat,title,thingSingular,thingPlural,total,unit,a,b,nameA,nam
 function mkStoryYesNo({cat,title,thingPlural,total,unit,a,b,nameA,nameB,claimA,claimB,correctYes}){
   const text = `
     <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
-    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf:</p>
+    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf.</p>
     <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
     <p>${nameA} bekommt ${claimA}${unit} und ${nameB} bekommt ${claimB}${unit}.</p>
   `;
@@ -519,53 +441,46 @@ function mkStoryYesNo({cat,title,thingPlural,total,unit,a,b,nameA,nameB,claimA,c
   };
 }
 
-// Aufgaben bewusst: zuerst 2:3 mit 5, dann 2:3 mit 10, dann langsam weiter.
-// Alles ganzzahlig.
 const steps = [
   {
     type:"intro",
     cat:"Start",
     title:"Aufteilen im Verhältnis",
     text: `
-      <p>Du bekommst gleich Sachaufgaben wie:</p>
+      <p>Du bekommst Sachaufgaben, zum Beispiel:</p>
       <p><b>Ich habe 20 Bonbons.</b> Ich teile sie im Verhältnis <b>2:3</b> auf.</p>
-      <p>Nach deiner Antwort erklärt eine Animation alles – ohne Text-Erklärung.</p>
-      <p>Sie zeigt nur diese zwei Fragen + Rechnungen:</p>
-      <p>1) „Auf wieviele Teile wird aufgeteilt?“ → <b>a + b = gesamt</b><br>
-         2) „Wieviele Dinge sind ein Teil?“ → <b>Gesamt : Teile = pro Teil</b><br>
-      Dann steht „pro Teil“ in jedem Teil.</p>
+      <p>Unter dem Balken stehen immer zwei Schritte:</p>
+      <p><b>Schritt 1:</b> a + b = Anzahl Teile<br>
+         <b>Schritt 2:</b> Gesamt : Anzahl Teile = pro Teil</p>
+      <p>Nach deiner Antwort trägt die Animation „pro Teil“ in jedes Teil ein.</p>
     `
   },
 
   mkStoryMC({ cat:"Level 1 – ganz leicht", title:"Aufgabe 1",
-    thingSingular:"Bonbon", thingPlural:"Bonbons", total:5, unit:"",
+    thingPlural:"Bonbons", total:5, unit:"",
     a:2,b:3, nameA:"Anna", nameB:"Ben",
-    askFor:"A",
-    correctValue:"2",
+    askFor:"A", correctValue:"2",
     distractors:["3","1","5"]
   }),
 
   mkStoryMC({ cat:"Level 1 – gleiches Verhältnis", title:"Aufgabe 2",
-    thingSingular:"Bonbon", thingPlural:"Bonbons", total:10, unit:"",
+    thingPlural:"Bonbons", total:10, unit:"",
     a:2,b:3, nameA:"Anna", nameB:"Ben",
-    askFor:"B",
-    correctValue:"6",
+    askFor:"B", correctValue:"6",
     distractors:["4","5","8"]
   }),
 
   mkStoryMC({ cat:"Level 1 – Festigung", title:"Aufgabe 3",
-    thingSingular:"Sticker", thingPlural:"Sticker", total:15, unit:"",
+    thingPlural:"Sticker", total:15, unit:"",
     a:2,b:3, nameA:"A", nameB:"B",
-    askFor:"A",
-    correctValue:"6",
+    askFor:"A", correctValue:"6",
     distractors:["9","5","8"]
   }),
 
   mkStoryMC({ cat:"Level 1 – Festigung", title:"Aufgabe 4",
-    thingSingular:"Sticker", thingPlural:"Sticker", total:20, unit:"",
+    thingPlural:"Sticker", total:20, unit:"",
     a:2,b:3, nameA:"A", nameB:"B",
-    askFor:"A",
-    correctValue:"8",
+    askFor:"A", correctValue:"8",
     distractors:["12","10","6"]
   }),
 
@@ -577,50 +492,44 @@ const steps = [
   }),
 
   mkStoryMC({ cat:"Level 2 – neues Verhältnis", title:"Aufgabe 6",
-    thingSingular:"Euro", thingPlural:"Euro", total:25, unit:" €",
+    thingPlural:"Euro", total:25, unit:" €",
     a:1,b:4, nameA:"A", nameB:"B",
-    askFor:"A",
-    correctValue:"5",
+    askFor:"A", correctValue:"5",
     distractors:["10","20","4"]
   }),
 
   mkStoryMC({ cat:"Level 2 – neues Verhältnis", title:"Aufgabe 7",
-    thingSingular:"Punkt", thingPlural:"Punkte", total:25, unit:"",
+    thingPlural:"Punkte", total:25, unit:"",
     a:3,b:2, nameA:"A", nameB:"B",
-    askFor:"B",
-    correctValue:"10",
+    askFor:"B", correctValue:"10",
     distractors:["15","12","8"]
   }),
 
   mkStoryMC({ cat:"Level 3 – Verhältnis kürzen", title:"Aufgabe 8",
-    thingSingular:"Bonbon", thingPlural:"Bonbons", total:50, unit:"",
+    thingPlural:"Bonbons", total:50, unit:"",
     a:4,b:6, nameA:"A", nameB:"B",
-    askFor:"A",
-    correctValue:"20",
+    askFor:"A", correctValue:"20",
     distractors:["30","25","10"]
   }),
 
   mkStoryMC({ cat:"Level 3 – mehr Teile", title:"Aufgabe 9",
-    thingSingular:"Zentimeter", thingPlural:"cm", total:56, unit:" cm",
+    thingPlural:"cm", total:56, unit:" cm",
     a:5,b:2, nameA:"Teil A", nameB:"Teil B",
-    askFor:"B",
-    correctValue:"16",
+    askFor:"B", correctValue:"16",
     distractors:["40","14","12"]
   }),
 
   mkStoryMC({ cat:"Level 4 – Transfer", title:"Aufgabe 10",
-    thingSingular:"Euro", thingPlural:"Euro", total:60, unit:" €",
+    thingPlural:"Euro", total:60, unit:" €",
     a:2,b:3, nameA:"Anna", nameB:"Ben",
-    askFor:"B",
-    correctValue:"36",
+    askFor:"B", correctValue:"36",
     distractors:["24","30","40"]
   }),
 
   mkStoryMC({ cat:"Level 4 – Festigung", title:"Aufgabe 11",
-    thingSingular:"Karte", thingPlural:"Karten", total:30, unit:"",
+    thingPlural:"Karten", total:30, unit:"",
     a:1,b:2, nameA:"A", nameB:"B",
-    askFor:"A",
-    correctValue:"10",
+    askFor:"A", correctValue:"10",
     distractors:["20","15","5"]
   })
 ];
@@ -635,12 +544,16 @@ const metaEl = document.getElementById("meta");
 const catEl = document.getElementById("cat");
 const titleEl = document.getElementById("title");
 const textEl = document.getElementById("text");
+
+const visualRowEl = document.getElementById("visualRow");
+const visualCardEl = document.getElementById("visual");
+const stepsPanelEl = document.getElementById("stepsPanel");
+
 const promptEl = document.getElementById("prompt");
 const answersEl = document.getElementById("answers");
 const feedbackEl = document.getElementById("feedback");
 const nextBtn = document.getElementById("nextBtn");
 const restartBtn = document.getElementById("restartBtn");
-const visualEl = document.getElementById("visual");
 
 function setMeta(){ metaEl.textContent = `${stepIndex + 1} / ${steps.length}`; }
 
@@ -651,13 +564,12 @@ function clearScreen(){
   answered = false;
   nextBtn.disabled = true;
 
-  visualEl.style.display = "none";
-  visualEl.innerHTML = "";
-
   promptEl.style.display = "none";
   promptEl.textContent = "";
 
-  hideOverlay();
+  visualRowEl.style.display = "none";
+  visualCardEl.innerHTML = "";
+  stepsPanelEl.innerHTML = "";
 }
 
 function renderStep(){
@@ -669,19 +581,21 @@ function renderStep(){
   titleEl.textContent = s.title || "";
   textEl.innerHTML = s.text || "";
 
-  if(s.prompt){
-    promptEl.style.display = "block";
-    promptEl.textContent = s.prompt;
-  }
-
   if(s.type === "intro"){
     nextBtn.disabled = false;
     return;
   }
 
-  // Visual (immer)
-  visualEl.style.display = "flex";
-  renderBarModel(visualEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
+  // Visuals + Schritte
+  visualRowEl.style.display = "flex";
+  renderBarModel(visualCardEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
+  renderStepsPanel(stepsPanelEl, s);
+
+  // Prompt
+  if(s.prompt){
+    promptEl.style.display = "block";
+    promptEl.textContent = s.prompt;
+  }
 
   // Answers
   if(s.type === "mc") renderMC(s);
@@ -689,8 +603,8 @@ function renderStep(){
 }
 
 function afterAnswer(s){
-  // Animation = Erklärung
-  animateAsRequested(s);
+  // Animation NUR fürs Eintragen pro Teil
+  animateFillPerPart(s);
   nextBtn.disabled = false;
 }
 
