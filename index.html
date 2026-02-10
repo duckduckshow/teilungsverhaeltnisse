@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – Schritt 3 + Teil-Highlight</title>
+<title>Teilungsverhältnisse – langsamer + Schritte nebeneinander</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
   body { margin:0; background:#f4f4f4; display:flex; justify-content:center; }
   .app{
-    background:#fff; max-width: 1060px; width:100%;
+    background:#fff; max-width: 1120px; width:100%;
     margin:12px; padding:12px; border-radius:10px;
     box-shadow:0 2px 8px rgba(0,0,0,.08);
   }
@@ -58,7 +58,7 @@
 
   .visualRow { margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
   .vizCard{
-    flex:1 1 640px;
+    flex:1 1 560px;
     border:1px solid #e5e5e5; border-radius:12px; padding:12px;
     background:#fcfcfc;
   }
@@ -83,7 +83,6 @@
   .partA{ background:var(--A); }
   .partB{ background:var(--B); }
 
-  /* gelber Rahmen für einzelne Teile */
   .part.highlight{
     outline: 5px solid var(--glow);
     outline-offset: -5px;
@@ -92,7 +91,6 @@
     z-index:1;
   }
 
-  /* gelber Rahmen für A-Gruppe / B-Gruppe */
   .part.groupHighlight{
     outline: 5px solid var(--glow);
     outline-offset: -5px;
@@ -119,13 +117,13 @@
   .dotA{ background:var(--A); }
   .dotB{ background:var(--B); }
 
-  /* ===== Schritte (erscheinen nach Antwort) ===== */
+  /* ===== Schritte: nebeneinander (3 Spalten) ===== */
   .stepsPanel{
-    flex:1 1 360px;
+    flex:1 1 520px;
     border:1px solid #e5e5e5; border-radius:12px;
     background:#fff;
     padding:12px;
-    min-width:340px;
+    min-width:520px;
   }
   .stepsTitle{
     font-weight:1000;
@@ -134,15 +132,16 @@
   }
   .stepsGrid{
     display:grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr 1fr; /* nebeneinander */
     gap:10px;
+    align-items:stretch;
   }
   .stepBox{
     border:1px solid #eee;
     background:#fafafa;
     border-radius:12px;
     padding:10px;
-    min-height:86px;
+    min-height:104px;
   }
   .stepNr{ font-weight:1000; font-size:13px; margin-bottom:6px; }
   .stepText{ font-weight:1000; font-size:14px; margin-bottom:6px; }
@@ -154,6 +153,7 @@
     border-radius:12px;
     background:#fff;
     border:1px solid #ddd;
+    white-space:nowrap; /* damit's nicht umbricht */
   }
   .eq .hl{
     background: rgba(255,215,0,.25);
@@ -173,12 +173,18 @@
     transition: opacity .35s ease, transform .35s ease;
   }
 
-  /* Schritt 3 farbig (je nachdem A oder B gerechnet wird) */
   .step3A{ background: rgba(255,120,120,.14) !important; border-color: rgba(255,120,120,.35) !important; }
   .step3B{ background: rgba(120,170,255,.14) !important; border-color: rgba(120,170,255,.35) !important; }
   .eqA{ border-color: rgba(255,120,120,.55) !important; }
   .eqB{ border-color: rgba(120,170,255,.55) !important; }
 
+  /* Responsive: wenn's wirklich zu eng wird, auf 2 Spalten + 1 darunter */
+  @media (max-width: 980px){
+    .stepsPanel{ min-width:320px; flex:1 1 340px; }
+    .stepsGrid{ grid-template-columns: 1fr 1fr; }
+    .stepBox:nth-child(3){ grid-column: 1 / -1; }
+    .eq{ white-space:normal; }
+  }
 </style>
 </head>
 
@@ -253,7 +259,7 @@ function renderBarModel(cardEl, a, b, nameA="A", nameB="B"){
   const parts = [];
   for(let i=0;i<sum;i++){
     const isA = i < aa;
-    parts.push({label: isA ? nameA : nameB, cls: isA ? "partA" : "partB"});
+    parts.push({cls: isA ? "partA" : "partB"});
   }
 
   cardEl.innerHTML = `
@@ -316,7 +322,7 @@ function setPartNumber(i, val){
 }
 
 /* =========================
-   Schritte-Panel (Step 3 abhängig von der Frage A/B)
+   Schritte-Panel (3 Schritte nebeneinander)
 ========================= */
 function renderStepsPanel(panelEl, s){
   const [aa, bb] = simplifyRatio(s.a, s.b);
@@ -324,7 +330,6 @@ function renderStepsPanel(panelEl, s){
   const calc = splitTotal(s.total, aa, bb);
   const one = fmt(calc.onePart);
 
-  // Wer wird gefragt?
   const target = s.askFor; // "A" oder "B"
   const targetName = (target === "A") ? s.nameA : s.nameB;
   const targetParts = (target === "A") ? aa : bb;
@@ -365,11 +370,7 @@ function showStepBox(id){
 }
 
 /* =========================
-   Ablauf nach Antwort:
-   1) Step 1 einblenden
-   2) Step 2 einblenden
-   3) Balken: pro Teil eintragen (Teil für Teil gelb)
-   4) Step 3 einblenden (farbig) + Ziel-GRUPPE gelb umranden
+   Ablauf nach Antwort (JETZT: ~3x langsamer)
 ========================= */
 let timers = [];
 function stopAnimation(){
@@ -381,13 +382,14 @@ function stopAnimation(){
 function runPostAnswerSequence(s){
   stopAnimation();
 
-  const step1Delay = 200;
-  const step2Delay = 1200;
-  const fillDelay  = 2300;
+  // vorher war: 200 / 1200 / 2300
+  // jetzt ~3x langsamer:
+  const step1Delay = 600;
+  const step2Delay = 3600;  // 3x
+  const fillDelay  = 6900;  // 3x
 
   timers.push(setTimeout(() => showStepBox("step1Box"), step1Delay));
   timers.push(setTimeout(() => showStepBox("step2Box"), step2Delay));
-
   timers.push(setTimeout(() => animateFillPerPartThenStep3(s), fillDelay));
 }
 
@@ -402,11 +404,12 @@ function animateFillPerPartThenStep3(s){
   setAllPartNumbers("");
   clearPartMarks();
 
-  const startDelay = 200;
-  const perPartDelay = 850;
-  const holdAfterFill = 650;
+  // vorher: start 200, perPart 850, holdAfter 650
+  // jetzt ~3x langsamer:
+  const startDelay = 600;
+  const perPartDelay = 2550;
+  const holdAfterFill = 1950;
 
-  // 1) Eintragen links -> rechts
   for(let i=0;i<sum;i++){
     timers.push(setTimeout(() => {
       clearPartMarks();
@@ -416,17 +419,15 @@ function animateFillPerPartThenStep3(s){
 
     timers.push(setTimeout(() => {
       unhighlightPart(i);
-    }, startDelay + i*perPartDelay + 520));
+    }, startDelay + i*perPartDelay + 1560)); // 520*3
   }
 
-  // 2) Danach Schritt 3 einblenden + Zielgruppe umranden
   const afterFill = startDelay + sum*perPartDelay + holdAfterFill;
 
   timers.push(setTimeout(() => {
     showStepBox("step3Box");
-
-    // Zielgruppe (A oder B) gelb umranden
     clearPartMarks();
+
     if(s.askFor === "A"){
       const idx = [];
       for(let i=0;i<aa;i++) idx.push(i);
@@ -440,7 +441,7 @@ function animateFillPerPartThenStep3(s){
 }
 
 /* =========================
-   Aufgaben (Sachbeispiele, ausformuliert)
+   Aufgaben (mit askFor)
 ========================= */
 function mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors}){
   const question =
@@ -468,107 +469,20 @@ function mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corr
   };
 }
 
-function mkStoryYesNo({cat,title,thingPlural,total,unit,a,b,nameA,nameB,claimA,claimB,correctYes}){
-  const text = `
-    <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
-    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf.</p>
-    <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
-    <p>${nameA} bekommt ${claimA}${unit} und ${nameB} bekommt ${claimB}${unit}.</p>
-  `;
-  return {
-    type:"yesno",
-    cat, title,
-    thingPlural,
-    total, unit, a, b, nameA, nameB,
-    askFor: "A", // irrelevant hier, wird nicht benutzt
-    text,
-    prompt:"Stimmt das?",
-    correctYes
-  };
-}
-
 const steps = [
-  {
-    type:"intro",
-    cat:"Start",
-    title:"Aufteilen im Verhältnis",
-    text: `
-      <p>Nach deiner Antwort erscheinen die Rechnungen nacheinander:</p>
-      <p><b>Schritt 1:</b> a + b = Teile<br>
-         <b>Schritt 2:</b> Gesamt : Teile = pro Teil<br>
-         <b>Schritt 3:</b> pro Teil · (Teile von A oder B) = Antwort</p>
-      <p>Am Schluss wird nur der passende Balkenteil (A oder B) gelb umrandet.</p>
-    `
-  },
+  { type:"intro", cat:"Start", title:"Aufteilen im Verhältnis",
+    text:`<p>Nach deiner Antwort erscheinen die 3 Schritte <b>nebeneinander</b> und die Animation läuft <b>sehr langsam</b>.</p>` },
 
-  mkStoryMC({ cat:"Level 1 – ganz leicht", title:"Aufgabe 1",
+  mkStoryMC({ cat:"Level 1", title:"Aufgabe 1",
     thingPlural:"Bonbons", total:5, unit:"",
     a:2,b:3, nameA:"Anna", nameB:"Ben",
-    askFor:"A", correctValue:"2",
-    distractors:["3","1","5"]
+    askFor:"A", correctValue:"2", distractors:["3","1","5"]
   }),
 
-  mkStoryMC({ cat:"Level 1 – gleiches Verhältnis", title:"Aufgabe 2",
+  mkStoryMC({ cat:"Level 1", title:"Aufgabe 2",
     thingPlural:"Bonbons", total:10, unit:"",
     a:2,b:3, nameA:"Anna", nameB:"Ben",
-    askFor:"B", correctValue:"6",
-    distractors:["4","5","8"]
-  }),
-
-  mkStoryMC({ cat:"Level 1 – Festigung", title:"Aufgabe 3",
-    thingPlural:"Sticker", total:15, unit:"",
-    a:2,b:3, nameA:"A", nameB:"B",
-    askFor:"A", correctValue:"6",
-    distractors:["9","5","8"]
-  }),
-
-  mkStoryMC({ cat:"Level 1 – Festigung", title:"Aufgabe 4",
-    thingPlural:"Sticker", total:20, unit:"",
-    a:2,b:3, nameA:"A", nameB:"B",
-    askFor:"A", correctValue:"8",
-    distractors:["12","10","6"]
-  }),
-
-  mkStoryYesNo({ cat:"Level 1 – Kontrolle", title:"Aufgabe 5",
-    thingPlural:"Murmeln", total:25, unit:"",
-    a:2,b:3, nameA:"A", nameB:"B",
-    claimA:10, claimB:15,
-    correctYes:true
-  }),
-
-  mkStoryMC({ cat:"Level 2 – neues Verhältnis", title:"Aufgabe 6",
-    thingPlural:"Euro", total:25, unit:" €",
-    a:1,b:4, nameA:"A", nameB:"B",
-    askFor:"A", correctValue:"5",
-    distractors:["10","20","4"]
-  }),
-
-  mkStoryMC({ cat:"Level 2 – neues Verhältnis", title:"Aufgabe 7",
-    thingPlural:"Punkte", total:25, unit:"",
-    a:3,b:2, nameA:"A", nameB:"B",
-    askFor:"B", correctValue:"10",
-    distractors:["15","12","8"]
-  }),
-
-  mkStoryMC({ cat:"Level 3 – Verhältnis kürzen", title:"Aufgabe 8",
-    thingPlural:"Bonbons", total:50, unit:"",
-    a:4,b:6, nameA:"A", nameB:"B",
-    askFor:"A", correctValue:"20",
-    distractors:["30","25","10"]
-  }),
-
-  mkStoryMC({ cat:"Level 3 – mehr Teile", title:"Aufgabe 9",
-    thingPlural:"cm", total:56, unit:" cm",
-    a:5,b:2, nameA:"Teil A", nameB:"Teil B",
-    askFor:"B", correctValue:"16",
-    distractors:["40","14","12"]
-  }),
-
-  mkStoryMC({ cat:"Level 4 – Transfer", title:"Aufgabe 10",
-    thingPlural:"Euro", total:60, unit:" €",
-    a:2,b:3, nameA:"Anna", nameB:"Ben",
-    askFor:"B", correctValue:"36",
-    distractors:["24","30","40"]
+    askFor:"B", correctValue:"6", distractors:["4","5","8"]
   })
 ];
 
@@ -634,7 +548,6 @@ function renderStep(){
   }
 
   if(s.type === "mc") renderMC(s);
-  else if(s.type === "yesno") renderYesNo(s);
 }
 
 function afterAnswer(s){
@@ -674,44 +587,6 @@ function renderMC(s){
   });
 }
 
-function renderYesNo(s){
-  const opts = shuffle([
-    {t:"Ja", ok: s.correctYes === true},
-    {t:"Nein", ok: s.correctYes === false}
-  ]);
-
-  opts.forEach(o => {
-    const btn = document.createElement("div");
-    btn.className = "answer";
-    btn.textContent = o.t;
-
-    btn.onclick = () => {
-      if(answered) return;
-      answered = true;
-      [...answersEl.children].forEach(el => el.classList.add("disabled"));
-
-      if(o.ok){
-        btn.classList.add("correct");
-        feedbackEl.textContent = "Richtig.";
-      } else {
-        btn.classList.add("wrong");
-        feedbackEl.textContent = "Falsch.";
-        [...answersEl.children].forEach(el => {
-          if((el.textContent==="Ja" && s.correctYes) || (el.textContent==="Nein" && !s.correctYes)){
-            el.classList.add("correct");
-          }
-        });
-      }
-      afterAnswer(s);
-    };
-
-    answersEl.appendChild(btn);
-  });
-}
-
-/* =========================
-   Navigation
-========================= */
 nextBtn.onclick = () => {
   stepIndex++;
   if(stepIndex >= steps.length) stepIndex = 0;
@@ -726,4 +601,5 @@ renderStep();
 </script>
 </body>
 </html>
+
 
