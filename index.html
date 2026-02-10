@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – Aufteilen im Verhältnis (eine Aufgabe pro Seite)</title>
+<title>Teilungsverhältnisse – Aufteilen im Verhältnis (1 Aufgabe pro Seite)</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
@@ -26,6 +26,7 @@
 
   .prompt { margin-top:10px; font-weight:900; font-size:14px; color:#222; }
 
+  /* Hilfe erst nach Antwort */
   .help{
     margin-top:10px; padding:10px;
     background:#fafafa; border:1px solid #eee; border-radius:12px;
@@ -55,50 +56,45 @@
   .btn.secondary:hover { background:#000; }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
 
-  /* ===== Visual: Balkenmodell ===== */
+  /* ===== Bunte Darstellung: Balkenmodell ===== */
+  :root{
+    --A: rgba(255, 120, 120, .75);  /* rot/pink */
+    --B: rgba(120, 170, 255, .75);  /* blau */
+    --outline:#333;
+  }
   .visualRow { margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
   .vizCard{
-    flex:1 1 360px;
+    flex:1 1 460px;
     border:1px solid #e5e5e5; border-radius:12px; padding:10px;
     background:#fcfcfc;
   }
   .vizTitle{ font-weight:900; margin-bottom:8px; font-size:13px; color:#222; }
   .bar{
-    width:100%; height:52px;
-    border:2px solid #333; border-radius:12px;
-    overflow:hidden; display:flex;
-    background:#fff;
+    width:100%; height:56px;
+    border:2px solid var(--outline); border-radius:14px;
+    overflow:hidden; display:flex; background:#fff;
   }
   .part{
     height:100%;
     border-right:1px solid rgba(0,0,0,.25);
     display:flex; align-items:center; justify-content:center;
-    font-weight:900; font-size:12px; color:#222;
+    font-weight:900; font-size:13px; color:#222;
     user-select:none;
   }
   .part:last-child{ border-right:none; }
+  .partA{ background:var(--A); }
+  .partB{ background:var(--B); }
+
   .legend{ margin-top:8px; font-size:12px; color:#444; line-height:1.25; }
   .pill{
-    display:inline-block; padding:2px 8px; border-radius:999px;
+    display:inline-flex; align-items:center; gap:6px;
+    padding:3px 10px; border-radius:999px;
     border:1px solid #ddd; background:#fff; font-weight:900;
-    margin-right:6px;
+    margin-right:8px; margin-bottom:6px;
   }
-
-  /* ===== Sort (Drag&Drop) ===== */
-  .sortWrap { margin-top:10px; display:flex; realize:wrap; gap:12px; flex-wrap:wrap; }
-  .bank, .target{
-    flex:1 1 320px;
-    border:2px dashed #aaa; border-radius:12px; padding:10px; background:#fcfcfc;
-    min-height:130px;
-  }
-  .zoneTitle { font-weight:900; margin-bottom:8px; }
-  .hint { font-size:12px; color:#555; margin-top:6px; }
-  .sortItem{
-    border:1px solid #ccc; border-radius:12px; padding:10px; background:#fafafa;
-    margin-bottom:8px; cursor:grab; user-select:none;
-  }
-  .ok { color:#28a745; font-weight:900; }
-  .bad { color:#dc3545; font-weight:900; }
+  .dot{ width:10px; height:10px; border-radius:999px; display:inline-block; border:1px solid rgba(0,0,0,.25); }
+  .dotA{ background:var(--A); }
+  .dotB{ background:var(--B); }
 </style>
 </head>
 
@@ -119,9 +115,7 @@
     <div id="visual" class="visualRow" style="display:none;"></div>
 
     <div class="prompt" id="prompt" style="display:none;"></div>
-
     <div id="answers" class="answers"></div>
-    <div id="sortUI" style="display:none;"></div>
 
     <div class="help" id="help"></div>
     <div class="feedback" id="feedback"></div>
@@ -159,204 +153,290 @@ function splitTotal(total, a, b){
   const one = total / sum;
   return {A: a*one, B: b*one, onePart: one, sumParts: sum};
 }
-function niceInt(x){ return Number.isInteger(x) ? String(x) : String(x); }
+function fmt(x){
+  // wir halten die Aufgaben so, dass alles ganzzahlig ist;
+  // trotzdem hübsch formatieren, falls mal 0.5 etc. vorkommt.
+  return Number.isInteger(x) ? String(x) : String(Math.round(x*100)/100);
+}
 
 /* =========================
-   Visual: Balkenmodell
+   Visual: Balkenmodell (ohne Lösung!)
+   -> zeigt nur: A-Teile, B-Teile, insgesamt (a+b) Teile
 ========================= */
-function renderBarModel(container, total, a, b, nameA="Anna", nameB="Ben", unit=""){
-  const s = simplifyRatio(a,b);
-  const aa = s[0], bb = s[1];
+function renderBarModel(container, a, b, nameA="A", nameB="B"){
+  const [aa, bb] = simplifyRatio(a,b);
   const sum = aa + bb;
 
-  // Balken in "sum" Teile
   const parts = [];
   for(let i=0;i<sum;i++){
     const isA = i < aa;
-    parts.push({label: isA ? nameA[0] : nameB[0]});
+    parts.push({label: isA ? nameA : nameB, cls: isA ? "partA" : "partB"});
   }
 
-  const calc = splitTotal(total, aa, bb);
-
-  // Build HTML
   container.innerHTML = `
     <div class="vizCard">
-      <div class="vizTitle">Balkenmodell: Verhältnis ${aa}:${bb}</div>
+      <div class="vizTitle">Balkenmodell: Verhältnis <b>${aa}:${bb}</b> (nur Teile)</div>
       <div class="bar">
         ${parts.map(p => `
-          <div class="part" style="width:${(100/sum).toFixed(3)}%">${p.label}</div>
+          <div class="part ${p.cls}" style="width:${(100/sum).toFixed(3)}%">${p.label}</div>
         `).join("")}
       </div>
       <div class="legend">
-        <span class="pill">${nameA} = ${aa} Teile</span>
-        <span class="pill">${nameB} = ${bb} Teile</span><br>
-        Insgesamt: <b>${sum}</b> Teile → <b>1 Teil = ${niceInt(calc.onePart)}${unit}</b><br>
-        ⇒ ${nameA}: <b>${niceInt(calc.A)}${unit}</b>, ${nameB}: <b>${niceInt(calc.B)}${unit}</b>
+        <span class="pill"><span class="dot dotA"></span>${nameA}: ${aa} Teile</span>
+        <span class="pill"><span class="dot dotB"></span>${nameB}: ${bb} Teile</span><br>
+        Insgesamt: <b>${sum}</b> gleich große Teile
       </div>
     </div>
   `;
 }
 
 /* =========================
-   Steps
+   Steps (langsam steigender Schwierigkeitsgrad)
+   Wichtig: Lösungen stehen NICHT sichtbar da,
+   sondern erscheinen erst nach der Antwort im Hilfe-Kasten.
 ========================= */
 const steps = [
   {
     type:"intro",
-    cat:"Einführung",
-    title:"Was heißt „im Verhältnis a:b aufteilen“?",
+    cat:"Start",
+    title:"Was bedeutet „im Verhältnis a:b aufteilen“?",
     text: `
       <p><b>Teilungsverhältnis</b> bedeutet: Ein Ganzes wird <b>aufgeteilt</b>.</p>
-      <p>Wenn wir im Verhältnis <b>2:3</b> aufteilen, heißt das:</p>
-      <p>Das Ganze besteht aus <b>2 + 3 = 5 gleich großen Teilen</b>.</p>
-      <p><b>Merksatz:</b><br>
-      Verhältnis <b>a:b</b> → insgesamt <b>a+b Teile</b> →<br>
-      <b>1 Teil = Ganzes ÷ (a+b)</b></p>
+      <p>Bei <b>2:3</b> heißt das:</p>
+      <p>Das Ganze besteht aus <b>2 + 3 = 5</b> gleich großen Teilen.</p>
+      <p><b>Plan:</b><br>
+      1) Teile zählen: <b>a+b</b><br>
+      2) <b>1 Teil</b> finden: Ganzes ÷ (a+b)<br>
+      3) A und B berechnen: A = a Teile, B = b Teile</p>
     `
   },
 
+  /* 1: ganz einfach: 2:3 und wirklich 5 Stück */
   {
     type:"mc",
-    cat:"Level 1 – Teile zählen",
+    cat:"Level 1 – super einfach",
     title:"Aufgabe 1",
     text: `
-      <p>Ein Kuchen wird im Verhältnis <b>2:3</b> aufgeteilt.</p>
-      <p><b>Wie viele Teile</b> hat der ganze Kuchen zusammen?</p>
+      <p>Es gibt <b>5 Bonbons</b>.</p>
+      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
     `,
-    prompt:"Welche Antwort stimmt?",
+    prompt:"Wie viele Bonbons bekommt A?",
     showVisual:true,
-    visual:{ total: 5, a:2, b:3, nameA:"A", nameB:"B", unit:"" }, // nur fürs Bild; total wird hier nicht als Menge interpretiert
+    visual:{a:2,b:3,nameA:"A",nameB:"B"},
     answers:[
-      {t:"5 Teile", ok:true},
-      {t:"6 Teile", ok:false},
-      {t:"2 Teile", ok:false},
-      {t:"3 Teile", ok:false}
+      {t:"2", ok:true},
+      {t:"3", ok:false},
+      {t:"1", ok:false},
+      {t:"5", ok:false}
     ],
-    helpText:`Bei <b>2:3</b> zählt man die Teile: <b>2 + 3 = 5</b>.`
+    helpText:`2:3 → <b>5 Teile</b>. 5 Bonbons sind genau 5 Teile → <b>1 Teil = 1</b>. A hat 2 Teile → <b>2</b>.`
   },
 
+  /* 2: noch 2:3, aber 10 */
   {
     type:"mc",
-    cat:"Level 1 – Aufteilen mit einfacher Zahl",
+    cat:"Level 1 – gleiches Verhältnis",
     title:"Aufgabe 2",
     text: `
-      <p>Es gibt <b>30 Bonbons</b>.</p>
-      <p>Sie werden im Verhältnis <b>2:3</b> aufgeteilt (Anna : Ben).</p>
-      <p>Wie viele Bonbons bekommt <b>Anna</b>?</p>
+      <p>Es gibt <b>10 Bonbons</b>.</p>
+      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
     `,
-    prompt:"Wähle die richtige Antwort.",
+    prompt:"Wie viele Bonbons bekommt B?",
     showVisual:true,
-    visual:{ total:30, a:2, b:3, nameA:"Anna", nameB:"Ben", unit:"" },
+    visual:{a:2,b:3,nameA:"A",nameB:"B"},
     answers:[
-      {t:"12", ok:true},
-      {t:"18", ok:false},
-      {t:"10", ok:false},
-      {t:"15", ok:false}
+      {t:"6", ok:true},
+      {t:"4", ok:false},
+      {t:"5", ok:false},
+      {t:"8", ok:false}
     ],
-    helpText:`2:3 → <b>5 Teile</b>. 30 ÷ 5 = <b>6</b> pro Teil. Anna hat 2 Teile → <b>12</b>.`
+    helpText:`2:3 → <b>5 Teile</b>. 10 ÷ 5 = <b>2</b> pro Teil. B hat 3 Teile → 3·2 = <b>6</b>.`
   },
 
+  /* 3: 2:3 mit 15 */
   {
-    type:"yesno",
-    cat:"Level 1 – Plausibilitäts-Falle",
+    type:"mc",
+    cat:"Level 1 – gleiches Verhältnis",
     title:"Aufgabe 3",
     text: `
-      <p>48 € werden im Verhältnis <b>1:3</b> aufgeteilt (A : B).</p>
-      <p>A bekommt 16 € und B bekommt 32 €.</p>
+      <p>Es gibt <b>15 Bonbons</b>.</p>
+      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
+    `,
+    prompt:"Welche Aufteilung stimmt?",
+    showVisual:true,
+    visual:{a:2,b:3,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"A: 6   |   B: 9", ok:true},
+      {t:"A: 5   |   B: 10", ok:false},
+      {t:"A: 7   |   B: 8", ok:false},
+      {t:"A: 3   |   B: 12", ok:false}
+    ],
+    helpText:`2:3 → 5 Teile. 15 ÷ 5 = <b>3</b> pro Teil. A: 2·3 = <b>6</b>, B: 3·3 = <b>9</b>.`
+  },
+
+  /* 4: 2:3 mit 20 */
+  {
+    type:"mc",
+    cat:"Level 1 – gleiches Verhältnis",
+    title:"Aufgabe 4",
+    text: `
+      <p>Es gibt <b>20 Sticker</b>.</p>
+      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
+    `,
+    prompt:"Wie viele Sticker bekommt A?",
+    showVisual:true,
+    visual:{a:2,b:3,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"8", ok:true},
+      {t:"12", ok:false},
+      {t:"10", ok:false},
+      {t:"6", ok:false}
+    ],
+    helpText:`2:3 → 5 Teile. 20 ÷ 5 = <b>4</b> pro Teil. A: 2·4 = <b>8</b>.`
+  },
+
+  /* 5: 2:3 mit 25, Ja/Nein */
+  {
+    type:"yesno",
+    cat:"Level 1 – Kontrolle",
+    title:"Aufgabe 5",
+    text: `
+      <p>Es gibt <b>25 Murmeln</b>.</p>
+      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
+      <p>A bekommt 10 und B bekommt 15.</p>
     `,
     prompt:"Stimmt das?",
     showVisual:true,
-    visual:{ total:48, a:1, b:3, nameA:"A", nameB:"B", unit:"€" },
+    visual:{a:2,b:3,nameA:"A",nameB:"B"},
     correctYes:true,
-    helpText:`1:3 → 4 Teile. 48 ÷ 4 = 12 € pro Teil. A: 12 €, B: 36 € wäre falsch – Moment! Hier ist die Vereinfachung wichtig: 48/4=12, also A=12 und B=36. Die Aussage 16/32 entspricht 1:2, nicht 1:3.`
+    helpText:`2:3 → 5 Teile. 25 ÷ 5 = <b>5</b> pro Teil. A: 2·5 = <b>10</b>, B: 3·5 = <b>15</b>.`
   },
 
+  /* 6: erst jetzt Verhältnis ändern, aber weiterhin „5 Teile“-Idee: 1:4 */
   {
     type:"mc",
-    cat:"Level 2 – Verhältnis vereinfachen",
-    title:"Aufgabe 4",
-    text: `
-      <p>60 Punkte werden im Verhältnis <b>4:6</b> aufgeteilt (Team Rot : Team Blau).</p>
-      <p>Wie viele Punkte bekommt Team Rot?</p>
-    `,
-    prompt:"Wähle die richtige Antwort.",
-    showVisual:true,
-    visual:{ total:60, a:4, b:6, nameA:"Rot", nameB:"Blau", unit:"" },
-    answers:[
-      {t:"24", ok:true},
-      {t:"40", ok:false},
-      {t:"20", ok:false},
-      {t:"30", ok:false}
-    ],
-    helpText:`4:6 kann man zu <b>2:3</b> kürzen. Insgesamt 5 Teile. 60 ÷ 5 = 12. Rot: 2 Teile → 24.`
-  },
-
-  {
-    type:"mc",
-    cat:"Level 2 – Sprache → Verhältnis",
-    title:"Aufgabe 5",
-    text: `
-      <p>„Ben bekommt <b>doppelt so viel</b> wie Anna.“</p>
-      <p>Welches Verhältnis passt (Anna : Ben)?</p>
-    `,
-    prompt:"Wähle die richtige Antwort.",
-    showVisual:false,
-    answers:[
-      {t:"1:2", ok:true},
-      {t:"2:1", ok:false},
-      {t:"2:3", ok:false},
-      {t:"1:3", ok:false}
-    ],
-    helpText:`„Ben doppelt so viel wie Anna“ heißt: Anna 1 Teil, Ben 2 Teile → <b>1:2</b>.`
-  },
-
-  {
-    type:"mc",
-    cat:"Level 3 – Strecken teilen",
+    cat:"Level 2 – neues Verhältnis, gleiche Idee",
     title:"Aufgabe 6",
     text: `
-      <p>Eine Strecke ist <b>56 cm</b> lang.</p>
-      <p>Sie wird im Verhältnis <b>5:2</b> geteilt (Teil A : Teil B).</p>
-      <p>Wie lang ist <b>Teil B</b>?</p>
+      <p>Es gibt <b>25 €</b>.</p>
+      <p>Aufteilung im Verhältnis <b>1:4</b> (A : B).</p>
     `,
-    prompt:"Wähle die richtige Antwort.",
+    prompt:"Wie viele Euro bekommt A?",
     showVisual:true,
-    visual:{ total:56, a:5, b:2, nameA:"Teil A", nameB:"Teil B", unit:" cm" },
+    visual:{a:1,b:4,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"5", ok:true},
+      {t:"10", ok:false},
+      {t:"20", ok:false},
+      {t:"4", ok:false}
+    ],
+    helpText:`1:4 → 5 Teile. 25 ÷ 5 = <b>5</b> pro Teil. A hat 1 Teil → <b>5 €</b>.`
+  },
+
+  /* 7: 3:2, weiterhin sehr „rund“ */
+  {
+    type:"mc",
+    cat:"Level 2 – neues Verhältnis",
+    title:"Aufgabe 7",
+    text: `
+      <p>Es gibt <b>25 Punkte</b>.</p>
+      <p>Aufteilung im Verhältnis <b>3:2</b> (A : B).</p>
+    `,
+    prompt:"Wie viele Punkte bekommt B?",
+    showVisual:true,
+    visual:{a:3,b:2,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"10", ok:true},
+      {t:"15", ok:false},
+      {t:"12", ok:false},
+      {t:"8", ok:false}
+    ],
+    helpText:`3:2 → 5 Teile. 25 ÷ 5 = <b>5</b>. B hat 2 Teile → 2·5 = <b>10</b>.`
+  },
+
+  /* 8: Kürzen ohne Stress: 4:6 -> 2:3 */
+  {
+    type:"mc",
+    cat:"Level 3 – Verhältnis kürzen",
+    title:"Aufgabe 8",
+    text: `
+      <p>Es gibt <b>50 Bonbons</b>.</p>
+      <p>Aufteilung im Verhältnis <b>4:6</b> (A : B).</p>
+    `,
+    prompt:"Wie viele Bonbons bekommt A?",
+    showVisual:true,
+    visual:{a:4,b:6,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"20", ok:true},
+      {t:"30", ok:false},
+      {t:"25", ok:false},
+      {t:"10", ok:false}
+    ],
+    helpText:`4:6 kann man zu <b>2:3</b> kürzen. Dann: 2+3 = 5 Teile. 50 ÷ 5 = <b>10</b>. A: 2·10 = <b>20</b>.`
+  },
+
+  /* 9: 5:2 mit 56 (7 Teile) */
+  {
+    type:"mc",
+    cat:"Level 3 – mehr Teile",
+    title:"Aufgabe 9",
+    text: `
+      <p>Eine Strecke ist <b>56 cm</b> lang.</p>
+      <p>Sie wird im Verhältnis <b>5:2</b> geteilt (A : B).</p>
+    `,
+    prompt:"Wie lang ist Teil B?",
+    showVisual:true,
+    visual:{a:5,b:2,nameA:"A",nameB:"B"},
     answers:[
       {t:"16 cm", ok:true},
       {t:"40 cm", ok:false},
       {t:"14 cm", ok:false},
-      {t:"20 cm", ok:false}
+      {t:"12 cm", ok:false}
     ],
-    helpText:`5:2 → 7 Teile. 56 ÷ 7 = 8 cm pro Teil. Teil B: 2 Teile → 16 cm.`
+    helpText:`5:2 → 7 Teile. 56 ÷ 7 = <b>8</b> cm pro Teil. B: 2·8 = <b>16 cm</b>.`
   },
 
+  /* 10: wieder 2:3 aber mit € (Transfer) */
   {
-    type:"sort",
-    cat:"Sortieren",
-    title:"Aufgabe 7",
+    type:"mc",
+    cat:"Level 4 – Transfer",
+    title:"Aufgabe 10",
     text: `
-      <p><b>Ordne von „A bekommt am meisten“ nach „A bekommt am wenigsten“.</b></p>
-      <p>Ziehe alle Karten in „Meine Reihenfolge“.</p>
+      <p>Ein Gewinn von <b>60 €</b> wird im Verhältnis <b>2:3</b> aufgeteilt (A : B).</p>
     `,
-    prompt:"Oben = A-Anteil am größten. Unten = A-Anteil am kleinsten.",
-    showVisual:false,
-    sortItems:[
-      {id:"r1", text:"A:B = 3:1", a:3, b:1},
-      {id:"r2", text:"A:B = 2:3", a:2, b:3},
-      {id:"r3", text:"A:B = 1:1", a:1, b:1},
-      {id:"r4", text:"A:B = 1:4", a:1, b:4},
+    prompt:"Wie viele Euro bekommt B?",
+    showVisual:true,
+    visual:{a:2,b:3,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"36 €", ok:true},
+      {t:"24 €", ok:false},
+      {t:"30 €", ok:false},
+      {t:"40 €", ok:false}
     ],
-    helpText:`Vergleiche den Anteil von A: <b>a/(a+b)</b>. Größerer Anteil → weiter nach oben.`
+    helpText:`2:3 → 5 Teile. 60 ÷ 5 = <b>12 €</b> pro Teil. B: 3·12 = <b>36 €</b>.`
+  },
+
+  /* 11: noch eine zur Festigung, 1:2 mit 30 */
+  {
+    type:"mc",
+    cat:"Level 4 – Festigung",
+    title:"Aufgabe 11",
+    text: `
+      <p>Es gibt <b>30 Karten</b>.</p>
+      <p>Aufteilung im Verhältnis <b>1:2</b> (A : B).</p>
+    `,
+    prompt:"Wie viele Karten bekommt A?",
+    showVisual:true,
+    visual:{a:1,b:2,nameA:"A",nameB:"B"},
+    answers:[
+      {t:"10", ok:true},
+      {t:"20", ok:false},
+      {t:"15", ok:false},
+      {t:"5", ok:false}
+    ],
+    helpText:`1:2 → 3 Teile. 30 ÷ 3 = <b>10</b>. A hat 1 Teil → <b>10</b>.`
   }
 ];
-
-/* =========================
-   Fix: Aufgabe 3 (Yes/No) – Helptext war zu „nett“
-   -> Wir korrigieren: 16/32 ist NICHT 1:3
-========================= */
-steps[3].helpText = `1:3 → 4 Teile. 48 ÷ 4 = <b>12 €</b> pro Teil. Also A = 12 €, B = 36 €. <br>
-Die Angabe 16 € und 32 € ist Verhältnis <b>1:2</b> (weil 16:32 kürzt sich zu 1:2).`;
 
 /* =========================
    UI state
@@ -375,7 +455,6 @@ const feedbackEl = document.getElementById("feedback");
 const nextBtn = document.getElementById("nextBtn");
 const restartBtn = document.getElementById("restartBtn");
 const visualEl = document.getElementById("visual");
-const sortUI = document.getElementById("sortUI");
 
 function setMeta(){ metaEl.textContent = `${stepIndex + 1} / ${steps.length}`; }
 
@@ -387,9 +466,6 @@ function clearScreen(){
 
   visualEl.style.display = "none";
   visualEl.innerHTML = "";
-
-  sortUI.style.display = "none";
-  sortUI.innerHTML = "";
 
   promptEl.style.display = "none";
   promptEl.textContent = "";
@@ -425,18 +501,19 @@ function renderStep(){
 
   if(s.showVisual && s.visual){
     visualEl.style.display = "flex";
-    const v = s.visual;
-    // Bar model expects total + ratio
-    // For Aufgabe 1 visual: total isn't a "real total", but it's fine.
-    renderBarModel(visualEl, v.total, v.a, v.b, v.nameA, v.nameB, v.unit || "");
+    renderBarModel(
+      visualEl,
+      s.visual.a,
+      s.visual.b,
+      s.visual.nameA || "A",
+      s.visual.nameB || "B"
+    );
   }
 
   if(s.type === "mc"){
     renderMC(s);
   } else if(s.type === "yesno"){
     renderYesNo(s);
-  } else if(s.type === "sort"){
-    renderSort(s);
   }
 }
 
@@ -465,6 +542,7 @@ function renderMC(s){
           if(found && found.ok) el.classList.add("correct");
         });
       }
+
       showHelpIfExists(s);
       nextBtn.disabled = false;
     };
@@ -501,128 +579,13 @@ function renderYesNo(s){
           }
         });
       }
+
       showHelpIfExists(s);
       nextBtn.disabled = false;
     };
 
     answersEl.appendChild(btn);
   });
-}
-
-/* =========================
-   Sort UI (Drag&Drop)
-========================= */
-let dragEl = null;
-
-function enableDnD(container){
-  container.addEventListener("dragstart", (e) => {
-    const item = e.target.closest(".sortItem");
-    if(!item) return;
-    dragEl = item;
-    e.dataTransfer.effectAllowed = "move";
-  });
-
-  container.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    const zone = e.target.closest(".bank, .target");
-    if(!zone || !dragEl) return;
-
-    const overItem = e.target.closest(".sortItem");
-    if(overItem && overItem.parentElement === zone && overItem !== dragEl){
-      const rect = overItem.getBoundingClientRect();
-      const after = (e.clientY - rect.top) > rect.height/2;
-      if(after) overItem.after(dragEl);
-      else overItem.before(dragEl);
-    } else if(!overItem){
-      zone.appendChild(dragEl);
-    }
-  });
-
-  container.addEventListener("drop", (e) => { e.preventDefault(); dragEl = null; });
-  container.addEventListener("dragend", () => dragEl = null);
-}
-
-function aShare(a,b){ return a/(a+b); }
-
-function renderSort(s){
-  sortUI.style.display = "block";
-
-  const wrap = document.createElement("div");
-  wrap.className = "sortWrap";
-
-  const bank = document.createElement("div");
-  bank.className = "bank";
-  bank.innerHTML = `<div class="zoneTitle">Karten</div><div class="hint">Ziehe alle Karten in „Meine Reihenfolge“.</div>`;
-
-  const target = document.createElement("div");
-  target.className = "target";
-  target.innerHTML = `<div class="zoneTitle">Meine Reihenfolge</div><div class="hint">Oben = A-Anteil am größten.</div>`;
-
-  const items = shuffle(s.sortItems.slice());
-  items.forEach(it => {
-    const div = document.createElement("div");
-    div.className = "sortItem";
-    div.draggable = true;
-    div.textContent = it.text;
-    div.dataset.a = it.a;
-    div.dataset.b = it.b;
-    bank.appendChild(div);
-  });
-
-  wrap.appendChild(bank);
-  wrap.appendChild(target);
-
-  const checkRow = document.createElement("div");
-  checkRow.style.marginTop = "10px";
-  checkRow.style.display = "flex";
-  checkRow.style.gap = "8px";
-  checkRow.style.flexWrap = "wrap";
-  checkRow.style.alignItems = "center";
-
-  const checkBtn = document.createElement("button");
-  checkBtn.className = "btn";
-  checkBtn.textContent = "Prüfen";
-
-  const result = document.createElement("div");
-  result.style.fontWeight = "900";
-
-  checkBtn.onclick = () => {
-    const targetItems = [...target.querySelectorAll(".sortItem")];
-    if(targetItems.length !== s.sortItems.length){
-      result.className = "bad";
-      result.textContent = "Noch nicht. Ziehe zuerst alle Karten in „Meine Reihenfolge“.";
-      nextBtn.disabled = true;
-      return;
-    }
-
-    const correct = s.sortItems
-      .slice()
-      .sort((x,y) => aShare(y.a,y.b) - aShare(x.a,x.b))
-      .map(x => `${x.a}:${x.b}`);
-
-    const current = targetItems.map(el => `${el.dataset.a}:${el.dataset.b}`);
-
-    const ok = correct.join("|") === current.join("|");
-    if(ok){
-      result.className = "ok";
-      result.textContent = "✅ Richtig geordnet.";
-      nextBtn.disabled = false;
-    } else {
-      result.className = "bad";
-      result.textContent = "❌ Noch nicht. Tipp: A-Anteil = a/(a+b).";
-      nextBtn.disabled = true;
-    }
-
-    showHelpIfExists(s);
-  };
-
-  checkRow.appendChild(checkBtn);
-  checkRow.appendChild(result);
-
-  sortUI.appendChild(wrap);
-  sortUI.appendChild(checkRow);
-
-  enableDnD(sortUI);
 }
 
 /* =========================
@@ -642,3 +605,4 @@ renderStep();
 </script>
 </body>
 </html>
+
