@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – Aufteilen im Verhältnis (1 Aufgabe pro Seite)</title>
+<title>Teilungsverhältnisse – Aufteilen im Verhältnis (animierte Erklärung)</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
@@ -26,7 +26,7 @@
 
   .prompt { margin-top:10px; font-weight:900; font-size:14px; color:#222; }
 
-  /* Hilfe erst nach Antwort */
+  /* Hilfe/Erklärung erst nach Antwort */
   .help{
     margin-top:10px; padding:10px;
     background:#fafafa; border:1px solid #eee; border-radius:12px;
@@ -61,6 +61,7 @@
     --A: rgba(255, 120, 120, .75);  /* rot/pink */
     --B: rgba(120, 170, 255, .75);  /* blau */
     --outline:#333;
+    --glow: rgba(255, 215, 0, .8);  /* gelb */
   }
   .visualRow { margin-top:12px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; }
   .vizCard{
@@ -80,10 +81,19 @@
     display:flex; align-items:center; justify-content:center;
     font-weight:900; font-size:13px; color:#222;
     user-select:none;
+    transition: transform .25s ease, filter .25s ease, outline .25s ease;
   }
   .part:last-child{ border-right:none; }
   .partA{ background:var(--A); }
   .partB{ background:var(--B); }
+
+  .part.highlight{
+    transform: translateY(-2px) scale(1.02);
+    filter: brightness(1.06);
+    outline: 3px solid var(--glow);
+    outline-offset:-3px;
+  }
+  .part.dim{ filter: grayscale(.15) brightness(.92); }
 
   .legend{ margin-top:8px; font-size:12px; color:#444; line-height:1.25; }
   .pill{
@@ -95,6 +105,31 @@
   .dot{ width:10px; height:10px; border-radius:999px; display:inline-block; border:1px solid rgba(0,0,0,.25); }
   .dotA{ background:var(--A); }
   .dotB{ background:var(--B); }
+
+  /* ===== Animations-Panel ===== */
+  .stepsBox{
+    margin-top:10px;
+    border:1px solid #eee;
+    border-radius:12px;
+    background:#fff;
+    padding:10px;
+  }
+  .stepLine{
+    display:none;
+    padding:8px 10px;
+    border-radius:12px;
+    background:#fafafa;
+    border:1px solid #eee;
+    margin-top:8px;
+    font-size:13px;
+    font-weight:800;
+  }
+  .stepLine.show{ display:block; }
+  .miniNote{ font-weight:600; color:#444; margin-top:6px; font-size:12px; }
+  .kbd{
+    display:inline-block; padding:2px 7px; border-radius:8px;
+    border:1px solid #ddd; background:#fff; font-weight:900;
+  }
 </style>
 </head>
 
@@ -154,14 +189,11 @@ function splitTotal(total, a, b){
   return {A: a*one, B: b*one, onePart: one, sumParts: sum};
 }
 function fmt(x){
-  // wir halten die Aufgaben so, dass alles ganzzahlig ist;
-  // trotzdem hübsch formatieren, falls mal 0.5 etc. vorkommt.
   return Number.isInteger(x) ? String(x) : String(Math.round(x*100)/100);
 }
 
 /* =========================
    Visual: Balkenmodell (ohne Lösung!)
-   -> zeigt nur: A-Teile, B-Teile, insgesamt (a+b) Teile
 ========================= */
 function renderBarModel(container, a, b, nameA="A", nameB="B"){
   const [aa, bb] = simplifyRatio(a,b);
@@ -176,9 +208,9 @@ function renderBarModel(container, a, b, nameA="A", nameB="B"){
   container.innerHTML = `
     <div class="vizCard">
       <div class="vizTitle">Balkenmodell: Verhältnis <b>${aa}:${bb}</b> (nur Teile)</div>
-      <div class="bar">
-        ${parts.map(p => `
-          <div class="part ${p.cls}" style="width:${(100/sum).toFixed(3)}%">${p.label}</div>
+      <div class="bar" id="bar">
+        ${parts.map((p,idx) => `
+          <div class="part ${p.cls}" data-idx="${idx}" style="width:${(100/sum).toFixed(3)}%">${p.label}</div>
         `).join("")}
       </div>
       <div class="legend">
@@ -190,253 +222,281 @@ function renderBarModel(container, a, b, nameA="A", nameB="B"){
   `;
 }
 
+function setBarHighlight(mode, a, b){
+  // mode: "all" | "A" | "B" | "none"
+  const bar = document.getElementById("bar");
+  if(!bar) return;
+  const parts = [...bar.querySelectorAll(".part")];
+
+  const [aa, bb] = simplifyRatio(a,b);
+  const sum = aa + bb;
+
+  parts.forEach(p => { p.classList.remove("highlight","dim"); });
+
+  if(mode === "none") return;
+
+  if(mode === "all"){
+    parts.forEach(p => p.classList.add("highlight"));
+    return;
+  }
+
+  if(mode === "A"){
+    parts.forEach((p,i) => {
+      if(i < aa) p.classList.add("highlight");
+      else p.classList.add("dim");
+    });
+    return;
+  }
+
+  if(mode === "B"){
+    parts.forEach((p,i) => {
+      if(i >= aa && i < sum) p.classList.add("highlight");
+      else p.classList.add("dim");
+    });
+    return;
+  }
+}
+
 /* =========================
-   Steps (langsam steigender Schwierigkeitsgrad)
-   Wichtig: Lösungen stehen NICHT sichtbar da,
-   sondern erscheinen erst nach der Antwort im Hilfe-Kasten.
+   Animierte Erklärung (nach Antwort)
+   Zeigt 3 Schritte nacheinander + passende Highlights.
+========================= */
+let animTimers = [];
+function clearAnimTimers(){
+  animTimers.forEach(t => clearTimeout(t));
+  animTimers = [];
+}
+
+function showAnimatedExplanation(step){
+  // step enthält: total, ratio a/b, names, unit
+  // Wichtig: erst NACH einer Antwort aufrufen.
+  clearAnimTimers();
+
+  const a = step.a, b = step.b;
+  const [aa, bb] = simplifyRatio(a,b);
+  const sum = aa + bb;
+
+  const calc = splitTotal(step.total, aa, bb);
+
+  // Help-Box aufbauen (ohne sofort alle Zeilen zu zeigen)
+  helpEl.style.display = "block";
+  helpEl.innerHTML = `
+    <div><b>So geht’s Schritt für Schritt:</b></div>
+    <div class="stepsBox">
+      <div class="stepLine" id="line1">1) Teile zählen: <b>${aa} + ${bb} = ${sum}</b> Teile</div>
+      <div class="stepLine" id="line2">2) 1 Teil finden: <b>${step.total}</b>${step.unit} ÷ <b>${sum}</b> = <b>${fmt(calc.onePart)}</b>${step.unit} pro Teil</div>
+      <div class="stepLine" id="line3">3) Aufteilen:
+        ${step.nameA}: <b>${aa}</b> Teile → <b>${fmt(calc.A)}</b>${step.unit}
+        &nbsp;|&nbsp;
+        ${step.nameB}: <b>${bb}</b> Teile → <b>${fmt(calc.B)}</b>${step.unit}
+      </div>
+      <div class="miniNote">Tipp: Du kannst die Balken „mitdenken“: erst alle Teile, dann A, dann B.</div>
+    </div>
+  `;
+
+  const l1 = document.getElementById("line1");
+  const l2 = document.getElementById("line2");
+  const l3 = document.getElementById("line3");
+
+  // Animation: 0ms Schritt 1, 800ms Schritt 2, 1600ms Schritt 3
+  setBarHighlight("none", a, b);
+
+  animTimers.push(setTimeout(() => {
+    l1.classList.add("show");
+    setBarHighlight("all", a, b);
+  }, 80));
+
+  animTimers.push(setTimeout(() => {
+    l2.classList.add("show");
+    // kurz nochmal alle Teile hervorheben (bestätigt "Ganzes in Teile")
+    setBarHighlight("all", a, b);
+  }, 900));
+
+  animTimers.push(setTimeout(() => {
+    l3.classList.add("show");
+    // erst A, dann B kurz blinken
+    setBarHighlight("A", a, b);
+  }, 1750));
+
+  animTimers.push(setTimeout(() => {
+    setBarHighlight("B", a, b);
+  }, 2400));
+
+  animTimers.push(setTimeout(() => {
+    setBarHighlight("none", a, b);
+  }, 3100));
+}
+
+/* =========================
+   Aufgaben: langsam steigern, mind. 10
+   - Am Anfang extrem „rund“ und immer wieder 2:3
+   - Nur ganzzahlige Ergebnisse
 ========================= */
 const steps = [
   {
     type:"intro",
     cat:"Start",
-    title:"Was bedeutet „im Verhältnis a:b aufteilen“?",
+    title:"Teilungsverhältnis verstehen",
     text: `
-      <p><b>Teilungsverhältnis</b> bedeutet: Ein Ganzes wird <b>aufgeteilt</b>.</p>
-      <p>Bei <b>2:3</b> heißt das:</p>
-      <p>Das Ganze besteht aus <b>2 + 3 = 5</b> gleich großen Teilen.</p>
-      <p><b>Plan:</b><br>
-      1) Teile zählen: <b>a+b</b><br>
-      2) <b>1 Teil</b> finden: Ganzes ÷ (a+b)<br>
-      3) A und B berechnen: A = a Teile, B = b Teile</p>
+      <p><b>Teilungsverhältnis</b> heißt: Ein Ganzes wird aufgeteilt.</p>
+      <p>Bei <b>2:3</b> heißt das: insgesamt <b>5</b> gleich große Teile.</p>
+      <p>Merke: <b>a:b</b> → insgesamt <b>a+b</b> Teile.</p>
+      <p>Rezept (immer gleich):<br>
+      1) <b>Teile zählen</b> → a+b<br>
+      2) <b>1 Teil</b> → Ganzes ÷ (a+b)<br>
+      3) <b>A</b> = a Teile, <b>B</b> = b Teile</p>
+      <p class="miniNote">Nach jeder Antwort bekommst du eine kurze animierte Erklärung.</p>
     `
   },
 
-  /* 1: ganz einfach: 2:3 und wirklich 5 Stück */
-  {
-    type:"mc",
+  // 1) 2:3 mit 5 (wirklich 5 Teile)
+  mkShareMC({
     cat:"Level 1 – super einfach",
     title:"Aufgabe 1",
-    text: `
-      <p>Es gibt <b>5 Bonbons</b>.</p>
-      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
-    `,
+    total:5, unit:"",
+    a:2, b:3, nameA:"A", nameB:"B",
     prompt:"Wie viele Bonbons bekommt A?",
-    showVisual:true,
-    visual:{a:2,b:3,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"2", ok:true},
-      {t:"3", ok:false},
-      {t:"1", ok:false},
-      {t:"5", ok:false}
-    ],
-    helpText:`2:3 → <b>5 Teile</b>. 5 Bonbons sind genau 5 Teile → <b>1 Teil = 1</b>. A hat 2 Teile → <b>2</b>.`
-  },
+    correctValue:"2",
+    distractors:["3","1","5"]
+  }),
 
-  /* 2: noch 2:3, aber 10 */
-  {
-    type:"mc",
+  // 2) 2:3 mit 10
+  mkShareMC({
     cat:"Level 1 – gleiches Verhältnis",
     title:"Aufgabe 2",
-    text: `
-      <p>Es gibt <b>10 Bonbons</b>.</p>
-      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
-    `,
+    total:10, unit:"",
+    a:2, b:3, nameA:"A", nameB:"B",
     prompt:"Wie viele Bonbons bekommt B?",
-    showVisual:true,
-    visual:{a:2,b:3,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"6", ok:true},
-      {t:"4", ok:false},
-      {t:"5", ok:false},
-      {t:"8", ok:false}
-    ],
-    helpText:`2:3 → <b>5 Teile</b>. 10 ÷ 5 = <b>2</b> pro Teil. B hat 3 Teile → 3·2 = <b>6</b>.`
-  },
+    correctValue:"6",
+    distractors:["4","5","8"]
+  }),
 
-  /* 3: 2:3 mit 15 */
+  // 3) 2:3 mit 15
   {
     type:"mc",
     cat:"Level 1 – gleiches Verhältnis",
     title:"Aufgabe 3",
-    text: `
-      <p>Es gibt <b>15 Bonbons</b>.</p>
-      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
-    `,
+    total:15, unit:"",
+    a:2, b:3, nameA:"A", nameB:"B",
+    text:`<p>Es gibt <b>15 Bonbons</b>. Aufteilung <b>2:3</b> (A : B).</p>`,
     prompt:"Welche Aufteilung stimmt?",
-    showVisual:true,
-    visual:{a:2,b:3,nameA:"A",nameB:"B"},
     answers:[
       {t:"A: 6   |   B: 9", ok:true},
       {t:"A: 5   |   B: 10", ok:false},
       {t:"A: 7   |   B: 8", ok:false},
       {t:"A: 3   |   B: 12", ok:false}
-    ],
-    helpText:`2:3 → 5 Teile. 15 ÷ 5 = <b>3</b> pro Teil. A: 2·3 = <b>6</b>, B: 3·3 = <b>9</b>.`
+    ]
   },
 
-  /* 4: 2:3 mit 20 */
-  {
-    type:"mc",
+  // 4) 2:3 mit 20
+  mkShareMC({
     cat:"Level 1 – gleiches Verhältnis",
     title:"Aufgabe 4",
-    text: `
-      <p>Es gibt <b>20 Sticker</b>.</p>
-      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
-    `,
+    total:20, unit:"",
+    a:2, b:3, nameA:"A", nameB:"B",
     prompt:"Wie viele Sticker bekommt A?",
-    showVisual:true,
-    visual:{a:2,b:3,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"8", ok:true},
-      {t:"12", ok:false},
-      {t:"10", ok:false},
-      {t:"6", ok:false}
-    ],
-    helpText:`2:3 → 5 Teile. 20 ÷ 5 = <b>4</b> pro Teil. A: 2·4 = <b>8</b>.`
-  },
+    correctValue:"8",
+    distractors:["12","10","6"]
+  }),
 
-  /* 5: 2:3 mit 25, Ja/Nein */
+  // 5) 2:3 mit 25 yes/no
   {
     type:"yesno",
     cat:"Level 1 – Kontrolle",
     title:"Aufgabe 5",
-    text: `
-      <p>Es gibt <b>25 Murmeln</b>.</p>
-      <p>Aufteilung im Verhältnis <b>2:3</b> (A : B).</p>
+    total:25, unit:"",
+    a:2, b:3, nameA:"A", nameB:"B",
+    text:`
+      <p>Es gibt <b>25 Murmeln</b>. Aufteilung <b>2:3</b> (A : B).</p>
       <p>A bekommt 10 und B bekommt 15.</p>
     `,
     prompt:"Stimmt das?",
-    showVisual:true,
-    visual:{a:2,b:3,nameA:"A",nameB:"B"},
-    correctYes:true,
-    helpText:`2:3 → 5 Teile. 25 ÷ 5 = <b>5</b> pro Teil. A: 2·5 = <b>10</b>, B: 3·5 = <b>15</b>.`
+    correctYes:true
   },
 
-  /* 6: erst jetzt Verhältnis ändern, aber weiterhin „5 Teile“-Idee: 1:4 */
-  {
-    type:"mc",
+  // 6) 1:4 mit 25 €
+  mkShareMC({
     cat:"Level 2 – neues Verhältnis, gleiche Idee",
     title:"Aufgabe 6",
-    text: `
-      <p>Es gibt <b>25 €</b>.</p>
-      <p>Aufteilung im Verhältnis <b>1:4</b> (A : B).</p>
-    `,
+    total:25, unit:" €",
+    a:1, b:4, nameA:"A", nameB:"B",
     prompt:"Wie viele Euro bekommt A?",
-    showVisual:true,
-    visual:{a:1,b:4,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"5", ok:true},
-      {t:"10", ok:false},
-      {t:"20", ok:false},
-      {t:"4", ok:false}
-    ],
-    helpText:`1:4 → 5 Teile. 25 ÷ 5 = <b>5</b> pro Teil. A hat 1 Teil → <b>5 €</b>.`
-  },
+    correctValue:"5",
+    distractors:["10","20","4"]
+  }),
 
-  /* 7: 3:2, weiterhin sehr „rund“ */
-  {
-    type:"mc",
+  // 7) 3:2 mit 25
+  mkShareMC({
     cat:"Level 2 – neues Verhältnis",
     title:"Aufgabe 7",
-    text: `
-      <p>Es gibt <b>25 Punkte</b>.</p>
-      <p>Aufteilung im Verhältnis <b>3:2</b> (A : B).</p>
-    `,
+    total:25, unit:"",
+    a:3, b:2, nameA:"A", nameB:"B",
     prompt:"Wie viele Punkte bekommt B?",
-    showVisual:true,
-    visual:{a:3,b:2,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"10", ok:true},
-      {t:"15", ok:false},
-      {t:"12", ok:false},
-      {t:"8", ok:false}
-    ],
-    helpText:`3:2 → 5 Teile. 25 ÷ 5 = <b>5</b>. B hat 2 Teile → 2·5 = <b>10</b>.`
-  },
+    correctValue:"10",
+    distractors:["15","12","8"]
+  }),
 
-  /* 8: Kürzen ohne Stress: 4:6 -> 2:3 */
-  {
-    type:"mc",
+  // 8) 4:6 mit 50 (kürzen zu 2:3)
+  mkShareMC({
     cat:"Level 3 – Verhältnis kürzen",
     title:"Aufgabe 8",
-    text: `
-      <p>Es gibt <b>50 Bonbons</b>.</p>
-      <p>Aufteilung im Verhältnis <b>4:6</b> (A : B).</p>
-    `,
+    total:50, unit:"",
+    a:4, b:6, nameA:"A", nameB:"B",
     prompt:"Wie viele Bonbons bekommt A?",
-    showVisual:true,
-    visual:{a:4,b:6,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"20", ok:true},
-      {t:"30", ok:false},
-      {t:"25", ok:false},
-      {t:"10", ok:false}
-    ],
-    helpText:`4:6 kann man zu <b>2:3</b> kürzen. Dann: 2+3 = 5 Teile. 50 ÷ 5 = <b>10</b>. A: 2·10 = <b>20</b>.`
-  },
+    correctValue:"20",
+    distractors:["30","25","10"]
+  }),
 
-  /* 9: 5:2 mit 56 (7 Teile) */
-  {
-    type:"mc",
+  // 9) 5:2 mit 56 cm
+  mkShareMC({
     cat:"Level 3 – mehr Teile",
     title:"Aufgabe 9",
-    text: `
-      <p>Eine Strecke ist <b>56 cm</b> lang.</p>
-      <p>Sie wird im Verhältnis <b>5:2</b> geteilt (A : B).</p>
-    `,
+    total:56, unit:" cm",
+    a:5, b:2, nameA:"Teil A", nameB:"Teil B",
     prompt:"Wie lang ist Teil B?",
-    showVisual:true,
-    visual:{a:5,b:2,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"16 cm", ok:true},
-      {t:"40 cm", ok:false},
-      {t:"14 cm", ok:false},
-      {t:"12 cm", ok:false}
-    ],
-    helpText:`5:2 → 7 Teile. 56 ÷ 7 = <b>8</b> cm pro Teil. B: 2·8 = <b>16 cm</b>.`
-  },
+    correctValue:"16",
+    distractors:["40","14","12"]
+  }),
 
-  /* 10: wieder 2:3 aber mit € (Transfer) */
-  {
-    type:"mc",
+  // 10) 2:3 mit 60 €
+  mkShareMC({
     cat:"Level 4 – Transfer",
     title:"Aufgabe 10",
-    text: `
-      <p>Ein Gewinn von <b>60 €</b> wird im Verhältnis <b>2:3</b> aufgeteilt (A : B).</p>
-    `,
+    total:60, unit:" €",
+    a:2, b:3, nameA:"A", nameB:"B",
     prompt:"Wie viele Euro bekommt B?",
-    showVisual:true,
-    visual:{a:2,b:3,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"36 €", ok:true},
-      {t:"24 €", ok:false},
-      {t:"30 €", ok:false},
-      {t:"40 €", ok:false}
-    ],
-    helpText:`2:3 → 5 Teile. 60 ÷ 5 = <b>12 €</b> pro Teil. B: 3·12 = <b>36 €</b>.`
-  },
+    correctValue:"36",
+    distractors:["24","30","40"]
+  }),
 
-  /* 11: noch eine zur Festigung, 1:2 mit 30 */
-  {
-    type:"mc",
+  // 11) 1:2 mit 30
+  mkShareMC({
     cat:"Level 4 – Festigung",
     title:"Aufgabe 11",
-    text: `
-      <p>Es gibt <b>30 Karten</b>.</p>
-      <p>Aufteilung im Verhältnis <b>1:2</b> (A : B).</p>
-    `,
+    total:30, unit:"",
+    a:1, b:2, nameA:"A", nameB:"B",
     prompt:"Wie viele Karten bekommt A?",
-    showVisual:true,
-    visual:{a:1,b:2,nameA:"A",nameB:"B"},
-    answers:[
-      {t:"10", ok:true},
-      {t:"20", ok:false},
-      {t:"15", ok:false},
-      {t:"5", ok:false}
-    ],
-    helpText:`1:2 → 3 Teile. 30 ÷ 3 = <b>10</b>. A hat 1 Teil → <b>10</b>.`
-  }
+    correctValue:"10",
+    distractors:["20","15","5"]
+  })
 ];
+
+/* =========================
+   Factory: einfache MC-Aufgaben
+========================= */
+function mkShareMC({cat,title,total,unit,a,b,nameA,nameB,prompt,correctValue,distractors}){
+  return {
+    type:"mc",
+    cat, title,
+    total, unit, a, b, nameA, nameB,
+    text: `<p>Es gibt <b>${total}${unit}</b>. Aufteilung im Verhältnis <b>${a}:${b}</b> (${nameA} : ${nameB}).</p>`,
+    prompt,
+    answers: shuffle([
+      {t: correctValue + (unit||""), ok:true},
+      ...distractors.map(x => ({t: x + (unit||""), ok:false}))
+    ])
+  };
+}
 
 /* =========================
    UI state
@@ -459,6 +519,7 @@ const visualEl = document.getElementById("visual");
 function setMeta(){ metaEl.textContent = `${stepIndex + 1} / ${steps.length}`; }
 
 function clearScreen(){
+  clearAnimTimers();
   answersEl.innerHTML = "";
   feedbackEl.textContent = "";
   answered = false;
@@ -472,12 +533,6 @@ function clearScreen(){
 
   helpEl.style.display = "none";
   helpEl.innerHTML = "";
-}
-
-function showHelpIfExists(s){
-  if(!s.helpText) return;
-  helpEl.innerHTML = `<b>${s.helpText}</b>`;
-  helpEl.style.display = "block";
 }
 
 function renderStep(){
@@ -499,22 +554,23 @@ function renderStep(){
     return;
   }
 
-  if(s.showVisual && s.visual){
-    visualEl.style.display = "flex";
-    renderBarModel(
-      visualEl,
-      s.visual.a,
-      s.visual.b,
-      s.visual.nameA || "A",
-      s.visual.nameB || "B"
-    );
-  }
+  // Visual immer bei Aufgaben
+  visualEl.style.display = "flex";
+  renderBarModel(visualEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
 
   if(s.type === "mc"){
     renderMC(s);
   } else if(s.type === "yesno"){
     renderYesNo(s);
   }
+}
+
+function afterAnswerCommon(s){
+  // animierte Erklärung nur, wenn total vorhanden (bei intro nicht)
+  if(typeof s.total === "number"){
+    showAnimatedExplanation(s);
+  }
+  nextBtn.disabled = false;
 }
 
 function renderMC(s){
@@ -542,9 +598,7 @@ function renderMC(s){
           if(found && found.ok) el.classList.add("correct");
         });
       }
-
-      showHelpIfExists(s);
-      nextBtn.disabled = false;
+      afterAnswerCommon(s);
     };
 
     answersEl.appendChild(btn);
@@ -579,9 +633,7 @@ function renderYesNo(s){
           }
         });
       }
-
-      showHelpIfExists(s);
-      nextBtn.disabled = false;
+      afterAnswerCommon(s);
     };
 
     answersEl.appendChild(btn);
@@ -605,4 +657,5 @@ renderStep();
 </script>
 </body>
 </html>
+
 
