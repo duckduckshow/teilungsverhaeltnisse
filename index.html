@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – 7 mit Animation + 3 ohne</title>
+<title>Teilungsverhältnisse – 7 mit Animation + 3 ohne (fix + leichter Start)</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
@@ -178,8 +178,8 @@
   .eqA{ border-color: rgba(255,120,120,.55) !important; }
   .eqB{ border-color: rgba(120,170,255,.55) !important; }
 
-  /* Aufgaben ohne Diagramm */
-  .plainBox{
+  /* Plain (ohne Diagramm) */
+  .plainWrap{
     margin-top:12px;
     border:1px solid #e5e5e5;
     border-radius:12px;
@@ -219,19 +219,18 @@
     <div class="cat" id="cat"></div>
     <div class="title" id="title"></div>
 
+    <!-- WICHTIG: Für Plain-Aufgaben wird dieser Text nicht doppelt gezeigt -->
     <div class="text" id="text"></div>
 
-    <!-- VISUAL (nur bei den 7 Animationsaufgaben) -->
+    <!-- Visualbereich -->
     <div id="visualRow" class="visualRow" style="display:none;">
       <div id="visual" class="vizCard"></div>
       <div id="stepsPanel" class="stepsPanel"></div>
     </div>
 
-    <!-- PLAIN (nur bei den 3 ohne Diagramm) -->
-    <div id="plainWrap" style="display:none;">
-      <div class="plainBox" id="plainBox"></div>
-      <div class="solutionLine" id="solutionLine"></div>
-    </div>
+    <!-- Plainbereich -->
+    <div id="plainWrap" class="plainWrap" style="display:none;"></div>
+    <div class="solutionLine" id="solutionLine"></div>
 
     <div class="prompt" id="prompt" style="display:none;"></div>
     <div id="answers" class="answers"></div>
@@ -252,14 +251,11 @@
 function shuffle(arr){
   const a = arr.slice();
   for(let i=a.length-1;i>0;i--){
-    const j=Math.floor(Mathrandom()*(i+1));
+    const j=Math.floor(Math.random()*(i+1));
     [a[i],a[j]]=[a[j],a[i]];
   }
   return a;
 }
-/* Fix: typo-safe Math.random wrapper */
-function Mathrandom(){ return Math.random(); }
-
 function gcd(a,b){
   a=Math.abs(a); b=Math.abs(b);
   while(b){ const t=a%b; a=b; b=t; }
@@ -398,7 +394,9 @@ function showStepBox(id){
 }
 
 /* =========================
-   Post-Answer Ablauf (sehr langsam)
+   Post-Answer Ablauf
+   - Schritte bleiben langsam
+   - NUR das Eintragen pro Teil etwas schneller (wie gewünscht)
 ========================= */
 let timers = [];
 function stopAnimation(){
@@ -431,8 +429,15 @@ function animateFillPerPartThenStep3(s){
   clearPartMarks();
 
   const startDelay = 600;
-  const perPartDelay = 2550;
-  const holdAfterFill = 1950;
+
+  // vorher: perPartDelay 2550 (sehr langsam)
+  // jetzt: deutlich schneller (z.B. 1550), aber immer noch ruhig
+  const perPartDelay = 1550;
+
+  // highlight-halt etwas länger als die Hälfte
+  const highlightHold = 950;
+
+  const holdAfterFill = 1600;
 
   for(let i=0;i<sum;i++){
     timers.push(setTimeout(() => {
@@ -443,7 +448,7 @@ function animateFillPerPartThenStep3(s){
 
     timers.push(setTimeout(() => {
       unhighlightPart(i);
-    }, startDelay + i*perPartDelay + 1560));
+    }, startDelay + i*perPartDelay + highlightHold));
   }
 
   const afterFill = startDelay + sum*perPartDelay + holdAfterFill;
@@ -466,25 +471,25 @@ function animateFillPerPartThenStep3(s){
 /* =========================
    Aufgaben-Builder
 ========================= */
-function mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual}){
-  const question =
-    askFor === "A" ? `Wie viele ${thingPlural} bekommt ${nameA}?` :
-    `Wie viele ${thingPlural} bekommt ${nameB}?`;
-
-  const text = `
+function mkStoryText({thingPlural,total,unit,a,b,nameA,nameB}){
+  return `
     <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
     <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf.</p>
     <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
   `;
+}
+
+function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual}){
+  const question =
+    askFor === "A" ? `Wie viele ${thingPlural} bekommt ${nameA}?` :
+    `Wie viele ${thingPlural} bekommt ${nameB}?`;
 
   return {
-    type:"mc",
+    type: withVisual ? "mc" : "plain-mc",
     cat, title,
-    thingPlural,
-    total, unit, a, b, nameA, nameB,
-    askFor,
+    thingPlural, total, unit, a, b, nameA, nameB, askFor,
     withVisual,
-    text,
+    text: mkStoryText({thingPlural,total,unit,a,b,nameA,nameB}),
     prompt: question,
     answers: shuffle([
       {t: correctValue + (unit || ""), ok:true},
@@ -493,17 +498,11 @@ function mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corr
   };
 }
 
-/* 3 Aufgaben ohne Diagramm + Animation: nach Antwort nur Lösung anzeigen */
-function mkPlainMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors}){
-  const base = mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual:false});
-  base.type = "plain-mc";
-  return base;
-}
-
 /* =========================
    Aufgabenliste
-   - 7 MIT Visual + Animation
-   - 3 OHNE Visual: nur Angabe + Auswahl + dann Lösung anzeigen
+   - Erste beiden: 1:2
+   - Dann: 3:2, 2:3, 1:4 (steigend)
+   - 7 mit Visual + Animation, 3 ohne
 ========================= */
 const steps = [
   {
@@ -511,53 +510,56 @@ const steps = [
     cat:"Start",
     title:"Aufteilen im Verhältnis",
     text: `
-      <p>Erst kommen <b>7 Aufgaben</b> mit Balken + Animation.</p>
-      <p>Dann kommen <b>3 Aufgaben</b> ohne Diagramm und ohne Animation (nur Angabe + Lösung), um zu prüfen, ob es sitzt.</p>
+      <p>Erst <b>7 Aufgaben</b> mit Diagramm + Animation.</p>
+      <p>Dann <b>3 Aufgaben</b> ohne Diagramm (nur Angabe + Lösung).</p>
+      <p>Start ist extra leicht: zuerst <b>1:2</b>.</p>
     `
   },
 
-  /* 7 mit Visual + Animation */
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 1", thingPlural:"Bonbons", total:5, unit:"",
-    a:2,b:3, nameA:"Anna", nameB:"Ben", askFor:"A",
-    correctValue:"2", distractors:["3","1","5"], withVisual:true
+  /* 7 MIT Animation (leicht starten: 1:2, 1:2) */
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 1", thingPlural:"Bonbons", total:9, unit:"",
+    a:1,b:2, nameA:"Anna", nameB:"Ben", askFor:"A",
+    correctValue:"3", distractors:["6","2","1"], withVisual:true
   }),
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 2", thingPlural:"Bonbons", total:10, unit:"",
-    a:2,b:3, nameA:"Anna", nameB:"Ben", askFor:"B",
-    correctValue:"6", distractors:["4","5","8"], withVisual:true
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 2", thingPlural:"Sticker", total:12, unit:"",
+    a:1,b:2, nameA:"A", nameB:"B", askFor:"B",
+    correctValue:"8", distractors:["4","6","10"], withVisual:true
   }),
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 3", thingPlural:"Sticker", total:15, unit:"",
-    a:2,b:3, nameA:"A", nameB:"B", askFor:"A",
-    correctValue:"6", distractors:["9","5","8"], withVisual:true
-  }),
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 4", thingPlural:"Sticker", total:20, unit:"",
-    a:2,b:3, nameA:"A", nameB:"B", askFor:"B",
-    correctValue:"12", distractors:["8","10","14"], withVisual:true
-  }),
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 5", thingPlural:"Euro", total:25, unit:" €",
-    a:1,b:4, nameA:"A", nameB:"B", askFor:"A",
-    correctValue:"5", distractors:["10","20","4"], withVisual:true
-  }),
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 6", thingPlural:"Punkte", total:25, unit:"",
+
+  /* dann 3:2 / 2:3 / 1:4 */
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 3", thingPlural:"Punkte", total:25, unit:"",
     a:3,b:2, nameA:"A", nameB:"B", askFor:"B",
     correctValue:"10", distractors:["15","12","8"], withVisual:true
   }),
-  mkStoryMC({ cat:"Mit Animation", title:"Aufgabe 7", thingPlural:"Karten", total:30, unit:"",
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 4", thingPlural:"Bonbons", total:10, unit:"",
+    a:2,b:3, nameA:"Anna", nameB:"Ben", askFor:"B",
+    correctValue:"6", distractors:["4","5","8"], withVisual:true
+  }),
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 5", thingPlural:"Sticker", total:20, unit:"",
+    a:2,b:3, nameA:"A", nameB:"B", askFor:"A",
+    correctValue:"8", distractors:["12","10","6"], withVisual:true
+  }),
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 6", thingPlural:"Euro", total:25, unit:" €",
+    a:1,b:4, nameA:"A", nameB:"B", askFor:"A",
+    correctValue:"5", distractors:["10","20","4"], withVisual:true
+  }),
+  mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 7", thingPlural:"Karten", total:30, unit:"",
     a:1,b:2, nameA:"A", nameB:"B", askFor:"A",
     correctValue:"10", distractors:["20","15","5"], withVisual:true
   }),
 
-  /* 3 ohne Visual + ohne Animation (nur Lösung anzeigen) */
-  mkPlainMC({ cat:"Ohne Diagramm", title:"Aufgabe 8", thingPlural:"Bonbons", total:40, unit:"",
+  /* 3 OHNE Diagramm */
+  mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 8", thingPlural:"Bonbons", total:40, unit:"",
     a:3,b:5, nameA:"Anna", nameB:"Ben", askFor:"B",
-    correctValue:"25", distractors:["15","20","30"]
+    correctValue:"25", distractors:["15","20","30"], withVisual:false
   }),
-  mkPlainMC({ cat:"Ohne Diagramm", title:"Aufgabe 9", thingPlural:"Sticker", total:36, unit:"",
+  mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 9", thingPlural:"Sticker", total:36, unit:"",
     a:4,b:5, nameA:"A", nameB:"B", askFor:"A",
-    correctValue:"16", distractors:["20","12","18"]
+    correctValue:"16", distractors:["20","12","18"], withVisual:false
   }),
-  mkPlainMC({ cat:"Ohne Diagramm", title:"Aufgabe 10", thingPlural:"Euro", total:63, unit:" €",
+  mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 10", thingPlural:"Euro", total:63, unit:" €",
     a:2,b:7, nameA:"A", nameB:"B", askFor:"B",
-    correctValue:"49", distractors:["14","35","45"]
+    correctValue:"49", distractors:["14","35","45"], withVisual:false
   }),
 ];
 
@@ -577,7 +579,6 @@ const visualCardEl = document.getElementById("visual");
 const stepsPanelEl = document.getElementById("stepsPanel");
 
 const plainWrapEl = document.getElementById("plainWrap");
-const plainBoxEl = document.getElementById("plainBox");
 const solutionLineEl = document.getElementById("solutionLine");
 
 const promptEl = document.getElementById("prompt");
@@ -603,7 +604,8 @@ function clearScreen(){
   stepsPanelEl.innerHTML = "";
 
   plainWrapEl.style.display = "none";
-  plainBoxEl.innerHTML = "";
+  plainWrapEl.innerHTML = "";
+
   solutionLineEl.classList.remove("show");
   solutionLineEl.textContent = "";
 }
@@ -615,7 +617,13 @@ function renderStep(){
   const s = steps[stepIndex];
   catEl.textContent = s.cat || "";
   titleEl.textContent = s.title || "";
-  textEl.innerHTML = s.text || "";
+
+  // FIX: Für Plain-Aufgaben NICHT oben im textEl anzeigen -> sonst doppelt
+  if(s.type === "plain-mc"){
+    textEl.innerHTML = "";                 // kein doppelter Text
+  } else {
+    textEl.innerHTML = s.text || "";
+  }
 
   if(s.type === "intro"){
     nextBtn.disabled = false;
@@ -627,9 +635,9 @@ function renderStep(){
     renderBarModel(visualCardEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
     renderStepsPanel(stepsPanelEl, s);
   } else {
-    // Plain mode: nur Textbox, keine Visuals
+    // Plain mode: Angabe hier anzeigen
     plainWrapEl.style.display = "block";
-    plainBoxEl.innerHTML = s.text;
+    plainWrapEl.innerHTML = s.text;
   }
 
   if(s.prompt){
@@ -637,7 +645,7 @@ function renderStep(){
     promptEl.textContent = s.prompt;
   }
 
-  if(s.type === "mc" || s.type === "plain-mc") renderMC(s);
+  renderMC(s);
 }
 
 function afterAnswer(s){
