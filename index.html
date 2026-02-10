@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – Aufteilen im Verhältnis (Schritte + ruhige Balken-Animation)</title>
+<title>Teilungsverhältnisse – Aufteilen im Verhältnis (Rechnung nacheinander + Balken-Animation)</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
@@ -64,7 +64,6 @@
   }
   .vizTitle{ font-weight:900; margin-bottom:10px; font-size:13px; color:#222; }
 
-  .barWrap{ position:relative; }
   .bar{
     width:100%; height:70px;
     border:2px solid var(--outline); border-radius:14px;
@@ -83,7 +82,7 @@
     font-weight:900; font-size:18px; color:#111;
     user-select:none;
     position:relative;
-    transition: outline .25s ease, transform .25s ease, filter .25s ease;
+    transition: outline .18s ease, transform .18s ease, filter .18s ease;
   }
   .part:last-child{ border-right:none; }
   .partA{ background:var(--A); }
@@ -117,7 +116,7 @@
   .dotA{ background:var(--A); }
   .dotB{ background:var(--B); }
 
-  /* ===== Schritte (größer, nebeneinander, bleiben stehen) ===== */
+  /* ===== Schritte-Panel: erscheint ERST nach Antwort und dann nacheinander ===== */
   .stepsPanel{
     flex:1 1 340px;
     border:1px solid #e5e5e5; border-radius:12px;
@@ -140,7 +139,7 @@
     background:#fafafa;
     border-radius:12px;
     padding:10px;
-    min-height:86px;
+    min-height:92px;
   }
   .stepNr{
     font-weight:1000;
@@ -148,15 +147,15 @@
     margin-bottom:6px;
   }
   .stepText{
-    font-weight:900;
+    font-weight:1000;
     font-size:14px;
     margin-bottom:6px;
   }
   .eq{
     display:inline-block;
     font-weight:1000;
-    font-size:18px;
-    padding:6px 10px;
+    font-size:20px;          /* größer */
+    padding:8px 12px;        /* größer */
     border-radius:12px;
     background:#fff;
     border:1px solid #ddd;
@@ -166,16 +165,20 @@
     padding:0 4px;
     border-radius:6px;
   }
-  .noteSmall{
-    font-size:12px;
-    color:#555;
-    margin-top:8px;
-    line-height:1.25;
-    font-weight:700;
+
+  /* zunächst unsichtbar */
+  .stepHidden{
+    opacity:0;
+    transform: translateY(6px);
+    pointer-events:none;
+  }
+  .stepShown{
+    opacity:1;
+    transform: translateY(0);
+    pointer-events:auto;
+    transition: opacity .35s ease, transform .35s ease;
   }
 
-  /* Intro: keine Visuals */
-  .hide { display:none !important; }
 </style>
 </head>
 
@@ -241,7 +244,7 @@ function fmt(x){
 }
 
 /* =========================
-   Visual: Balkenmodell (keine Animation am Anfang)
+   Balkenmodell (keine Start-Animation)
 ========================= */
 function renderBarModel(cardEl, a, b, nameA="A", nameB="B"){
   const [aa, bb] = simplifyRatio(a,b);
@@ -255,14 +258,12 @@ function renderBarModel(cardEl, a, b, nameA="A", nameB="B"){
 
   cardEl.innerHTML = `
     <div class="vizTitle">Balkenmodell: Verhältnis <b>${aa}:${bb}</b></div>
-    <div class="barWrap">
-      <div class="bar" id="bar">
-        ${parts.map((p,idx) => `
-          <div class="part ${p.cls}" data-idx="${idx}" style="width:${(100/sum).toFixed(3)}%">
-            <div class="num"></div>
-          </div>
-        `).join("")}
-      </div>
+    <div class="bar" id="bar">
+      ${parts.map((p,idx) => `
+        <div class="part ${p.cls}" data-idx="${idx}" style="width:${(100/sum).toFixed(3)}%">
+          <div class="num"></div>
+        </div>
+      `).join("")}
     </div>
 
     <div class="legend">
@@ -271,12 +272,12 @@ function renderBarModel(cardEl, a, b, nameA="A", nameB="B"){
       Insgesamt: <b>${sum}</b> gleich große Teile
     </div>
   `;
+
   setAllPartNumbers("");
   clearHighlights();
   setBarCompleted(false);
 }
 
-/* ===== Balken/Teile steuern ===== */
 function clearHighlights(){
   const bar = document.getElementById("bar");
   if(!bar) return;
@@ -299,6 +300,12 @@ function setAllPartNumbers(val){
   if(!bar) return;
   [...bar.querySelectorAll(".part .num")].forEach(n => n.textContent = val);
 }
+function setPartNumber(i, val){
+  const bar = document.getElementById("bar");
+  if(!bar) return;
+  const box = bar.querySelector(`.part[data-idx="${i}"] .num`);
+  if(box) box.textContent = val;
+}
 function setBarCompleted(on){
   const bar = document.getElementById("bar");
   if(!bar) return;
@@ -306,9 +313,7 @@ function setBarCompleted(on){
 }
 
 /* =========================
-   Schritte-Panel (bleibt stehen)
-   - Schritt 1: a + b = Gesamtteile
-   - Schritt 2: total : Gesamtteile = pro Teil
+   Schritte-Panel (wird gerendert, aber Schritte bleiben zunächst unsichtbar)
 ========================= */
 function renderStepsPanel(panelEl, s){
   const [aa, bb] = simplifyRatio(s.a, s.b);
@@ -316,34 +321,37 @@ function renderStepsPanel(panelEl, s){
   const calc = splitTotal(s.total, aa, bb);
   const one = fmt(calc.onePart);
 
-  const thing = s.thingPlural;
-  const unit = s.unit || "";
-
   panelEl.innerHTML = `
-    <div class="stepsTitle">Schritte (bleiben stehen)</div>
+    <div class="stepsTitle">Rechnung (erscheint nach deiner Antwort)</div>
     <div class="stepsGrid">
-      <div class="stepBox">
+      <div class="stepBox stepHidden" id="step1Box">
         <div class="stepNr">Schritt 1</div>
         <div class="stepText">Auf wieviele Teile wird aufgeteilt?</div>
         <div class="eq"><span class="hl">${aa}</span> + <span class="hl">${bb}</span> = <span class="hl">${sum}</span></div>
       </div>
 
-      <div class="stepBox">
+      <div class="stepBox stepHidden" id="step2Box">
         <div class="stepNr">Schritt 2</div>
-        <div class="stepText">Wieviele ${thing} sind ein Teil?</div>
-        <div class="eq"><span class="hl">${s.total}</span> : <span class="hl">${sum}</span> = <span class="hl">${one}</span>${unit}</div>
+        <div class="stepText">Wieviele ${s.thingPlural} sind ein Teil?</div>
+        <div class="eq"><span class="hl">${s.total}</span> : <span class="hl">${sum}</span> = <span class="hl">${one}</span>${s.unit || ""}</div>
       </div>
-    </div>
-    <div class="noteSmall">
-      Danach schreibt die Animation den Wert „pro Teil“ in jedes Teil.
     </div>
   `;
 }
 
+function showStepBox(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove("stepHidden");
+  el.classList.add("stepShown");
+}
+
 /* =========================
-   Animation (nur das Eintragen pro Teil)
-   - für jedes Teil: gelb umranden + Zahl eintragen
-   - am Ende: ganzer Balken gelb umranden
+   Ablauf nach Antwort:
+   1) Schritt 1 einblenden
+   2) Schritt 2 einblenden
+   3) Balken-Animation: pro Teil eintragen, pro Teil gelb umranden
+   4) am Ende ganzen Balken gelb umranden
 ========================= */
 let timers = [];
 function stopAnimation(){
@@ -353,35 +361,42 @@ function stopAnimation(){
   setBarCompleted(false);
 }
 
-function animateFillPerPart(s){
+function runPostAnswerSequence(s){
   stopAnimation();
+
+  // erst Schritte einblenden (nacheinander), dann Balken füllen
+  const step1Delay = 200;
+  const step2Delay = 1200;   // nach Schritt 1
+  const animDelay  = 2300;   // nach Schritt 2
+
+  timers.push(setTimeout(() => showStepBox("step1Box"), step1Delay));
+  timers.push(setTimeout(() => showStepBox("step2Box"), step2Delay));
+
+  timers.push(setTimeout(() => animateFillPerPart(s), animDelay));
+}
+
+function animateFillPerPart(s){
+  stopAnimation(); // stoppt evtl. alte, lässt aber die eingeblendeten Schritte stehen
 
   const [aa, bb] = simplifyRatio(s.a, s.b);
   const sum = aa + bb;
   const calc = splitTotal(s.total, aa, bb);
   const one = fmt(calc.onePart);
 
-  setAllPartNumbers(""); // start leer
+  // Start: Zahlen leer, Balken nicht fertig markiert
+  setAllPartNumbers("");
   clearHighlights();
   setBarCompleted(false);
 
-  const startDelay = 500;   // Pause, damit man "fertig" ist mit Antwort
-  const perPartDelay = 850; // bewusst ruhig
+  const startDelay = 200;   // kurze Pause bevor Eintragen beginnt
+  const perPartDelay = 850; // ruhig, gut sichtbar
   const holdAfter = 700;
 
   for(let i=0;i<sum;i++){
     timers.push(setTimeout(() => {
       clearHighlights();
       highlightPart(i);
-      // Zahl eintragen (so wie gewünscht)
-      setAllPartNumbers("");     // optional: leer lassen...
-      // ...oder: schon eingetragene stehen lassen? -> wir lassen sie stehen:
-      // Daher NICHT alles löschen, sondern nur den aktuellen Teil füllen:
-      const bar = document.getElementById("bar");
-      if(bar){
-        const box = bar.querySelector(`.part[data-idx="${i}"] .num`);
-        if(box) box.textContent = one;
-      }
+      setPartNumber(i, one); // links → rechts je Teil eintragen
     }, startDelay + i*perPartDelay));
 
     timers.push(setTimeout(() => {
@@ -391,7 +406,7 @@ function animateFillPerPart(s){
 
   timers.push(setTimeout(() => {
     clearHighlights();
-    setBarCompleted(true);
+    setBarCompleted(true); // am Ende ganzer Balken gelb
   }, startDelay + sum*perPartDelay + holdAfter));
 }
 
@@ -417,8 +432,8 @@ function mkStoryMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corr
     text,
     prompt: question,
     answers: shuffle([
-      {t: correctValue + unit, ok:true},
-      ...distractors.map(x => ({t: x + unit, ok:false}))
+      {t: correctValue + (unit || ""), ok:true},
+      ...distractors.map(x => ({t: x + (unit || ""), ok:false}))
     ])
   };
 }
@@ -447,12 +462,10 @@ const steps = [
     cat:"Start",
     title:"Aufteilen im Verhältnis",
     text: `
-      <p>Du bekommst Sachaufgaben, zum Beispiel:</p>
+      <p>Du bekommst Sachaufgaben wie:</p>
       <p><b>Ich habe 20 Bonbons.</b> Ich teile sie im Verhältnis <b>2:3</b> auf.</p>
-      <p>Unter dem Balken stehen immer zwei Schritte:</p>
-      <p><b>Schritt 1:</b> a + b = Anzahl Teile<br>
-         <b>Schritt 2:</b> Gesamt : Anzahl Teile = pro Teil</p>
-      <p>Nach deiner Antwort trägt die Animation „pro Teil“ in jedes Teil ein.</p>
+      <p><b>Wichtig:</b> Die Rechnung erscheint erst <b>nach deiner Antwort</b> – als Erklärung.</p>
+      <p>Danach trägt die Animation den Wert <b>„pro Teil“</b> von links nach rechts in den Balken ein.</p>
     `
   },
 
@@ -586,7 +599,7 @@ function renderStep(){
     return;
   }
 
-  // Visuals + Schritte
+  // Visuals + (noch unsichtbare) Rechnung
   visualRowEl.style.display = "flex";
   renderBarModel(visualCardEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
   renderStepsPanel(stepsPanelEl, s);
@@ -603,8 +616,8 @@ function renderStep(){
 }
 
 function afterAnswer(s){
-  // Animation NUR fürs Eintragen pro Teil
-  animateFillPerPart(s);
+  // nach der Antwort: erst Rechnung einblenden, dann Balken-Animation
+  runPostAnswerSequence(s);
   nextBtn.disabled = false;
 }
 
