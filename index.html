@@ -262,11 +262,6 @@
 
 <script>
 /* =========================
-   Hinweis zur Rechtschreibung
-   "wie viele" wird getrennt geschrieben (so ist es hier überall).
-========================= */
-
-/* =========================
    Helpers
 ========================= */
 function shuffle(arr){
@@ -492,18 +487,21 @@ function mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra}){
   `;
 }
 
-function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual,extraText}){
-  const question =
-    askFor === "A" ? `Wie viele ${thingPlural} bekommt ${nameA}?` :
-    `Wie viele ${thingPlural} bekommt ${nameB}?`;
+// Standard-Fragetext
+function questionText(thingPlural, askFor, nameA, nameB){
+  return askFor === "A"
+    ? `Wie viele ${thingPlural} bekommt ${nameA}?`
+    : `Wie viele ${thingPlural} bekommt ${nameB}?`;
+}
 
+function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual,extraText,customPrompt}){
   return {
     type: withVisual ? "mc" : "plain-mc",
     cat, title,
     thingPlural, total, unit, a, b, nameA, nameB, askFor,
     withVisual,
     text: mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra:extraText}),
-    prompt: question,
+    prompt: customPrompt || questionText(thingPlural, askFor, nameA, nameB),
     answers: shuffle([
       {t: correctValue + (unit || ""), ok:true},
       ...distractors.map(x => ({t: x + (unit || ""), ok:false}))
@@ -513,7 +511,6 @@ function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corre
 
 /* =========================
    Aufgabenliste
-   7 mit Visual + 4 ohne (inkl. Schule 2:5)
 ========================= */
 const steps = [
   {
@@ -523,7 +520,6 @@ const steps = [
     text: `
       <p>Erst <b>7 Aufgaben</b> mit Diagramm + Animation.</p>
       <p>Dann <b>4 Aufgaben</b> ohne Diagramm (nur Angabe + Lösung).</p>
-      <p>Start ist extra leicht: zuerst <b>1:2</b>.</p>
     `
   },
 
@@ -557,7 +553,7 @@ const steps = [
     correctValue:"10", distractors:["20","15","5"], withVisual:true
   }),
 
-  /* 4 OHNE Diagramm (inkl. Schule 2:5) */
+  /* 4 OHNE Diagramm */
   mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 8", thingPlural:"Bonbons", total:40, unit:"",
     a:3,b:5, nameA:"Anna", nameB:"Ben", askFor:"B",
     correctValue:"25", distractors:["15","20","30"], withVisual:false
@@ -570,10 +566,23 @@ const steps = [
     a:2,b:7, nameA:"A", nameB:"B", askFor:"B",
     correctValue:"49", distractors:["14","35","45"], withVisual:false
   }),
-  mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 11 (Schule)", thingPlural:"Schüler", total:28, unit:"",
-    a:2,b:5, nameA:"Buben", nameB:"Mädchen", askFor:"B",
-    correctValue:"20", distractors:["8","14","16"], withVisual:false,
-    extraText:"In einer Klasse sind 28 Schüler. Das Verhältnis Buben : Mädchen ist 2 : 5."
+
+  // ======= NUR DIESE AUFGABE ANDERS FORMULIERT =======
+  mkTaskMC({
+    cat:"Ohne Diagramm",
+    title:"Aufgabe 11 (Schule)",
+    thingPlural:"Mädchen",
+    total:28,
+    unit:"",
+    a:2,b:5,
+    nameA:"Buben",
+    nameB:"Mädchen",
+    askFor:"B",
+    correctValue:"20",
+    distractors:["14","16","8"],
+    withVisual:false,
+    extraText:"In einer Klasse sind 28 Schüler*innen. Das Verhältnis Buben : Mädchen ist 2 : 5.",
+    customPrompt:"Wie viele Mädchen sind in der Klasse?"
   }),
 
   { type:"finish" }
@@ -585,7 +594,7 @@ const steps = [
 let stepIndex = 0;
 let answered = false;
 let correctCount = 0;
-let gradedCount = 0; // zählt nur Aufgaben (nicht Intro/Finish)
+let gradedCount = 0;
 
 const metaEl = document.getElementById("meta");
 const scoreEl = document.getElementById("score");
@@ -639,7 +648,6 @@ function clearScreen(){
 }
 
 function renderFinish(){
-  // einfache Schwelle: ab 70% "Gratuliere"
   const percent = gradedCount > 0 ? (correctCount / gradedCount) : 0;
   const ok = percent >= 0.7;
 
@@ -657,9 +665,8 @@ function renderFinish(){
     </div>
   `;
 
-  const btn = document.getElementById("finishRestart");
-  btn.onclick = () => resetAll();
-  nextBtn.disabled = true; // beim Abschluss kein Weiter
+  document.getElementById("finishRestart").onclick = () => resetAll();
+  nextBtn.disabled = true;
 }
 
 function renderStep(){
@@ -669,7 +676,6 @@ function renderStep(){
 
   const s = steps[stepIndex];
 
-  // Finish
   if(s.type === "finish"){
     catEl.textContent = "Abschluss";
     titleEl.textContent = "Fertig";
@@ -681,7 +687,6 @@ function renderStep(){
   catEl.textContent = s.cat || "";
   titleEl.textContent = s.title || "";
 
-  // FIX: Für Plain-Aufgaben NICHT oben im textEl anzeigen -> sonst doppelt
   if(s.type === "plain-mc"){
     textEl.innerHTML = "";
   } else {
@@ -721,8 +726,14 @@ function afterAnswer(s, wasCorrect){
     const [aa, bb] = simplifyRatio(s.a, s.b);
     const calc = splitTotal(s.total, aa, bb);
     const res = (s.askFor === "A") ? fmt(calc.A) : fmt(calc.B);
-    const who = (s.askFor === "A") ? s.nameA : s.nameB;
-    solutionLineEl.textContent = `Lösung: ${who} bekommt ${res}${s.unit || ""}.`;
+
+    // bei Schule: Lösung passend formulieren
+    if(s.title.includes("(Schule)")){
+      solutionLineEl.textContent = `Lösung: Es sind ${res} Mädchen in der Klasse.`;
+    } else {
+      const who = (s.askFor === "A") ? s.nameA : s.nameB;
+      solutionLineEl.textContent = `Lösung: ${who} bekommt ${res}${s.unit || ""}.`;
+    }
     solutionLineEl.classList.add("show");
   }
 
@@ -775,7 +786,6 @@ function resetAll(){
   gradedCount = 0;
   renderStep();
 }
-
 restartBtn.onclick = () => resetAll();
 
 renderStep();
