@@ -410,7 +410,9 @@ function showStepBox(id){
 }
 
 /* =========================
-   Post-Answer Ablauf
+   Animation timing
+   - Schritte bleiben langsam
+   - Eintragen pro Teil etwas schneller
 ========================= */
 let timers = [];
 function stopAnimation(){
@@ -443,7 +445,7 @@ function animateFillPerPartThenStep3(s){
   clearPartMarks();
 
   const startDelay = 600;
-  const perPartDelay = 1550;
+  const perPartDelay = 1550;   // schneller als vorher, aber ruhig
   const highlightHold = 950;
   const holdAfterFill = 1600;
 
@@ -477,7 +479,7 @@ function animateFillPerPartThenStep3(s){
 }
 
 /* =========================
-   Aufgaben-Builder
+   Task builders
 ========================= */
 function mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra}){
   return `
@@ -487,14 +489,13 @@ function mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra}){
   `;
 }
 
-// Standard-Fragetext
 function questionText(thingPlural, askFor, nameA, nameB){
   return askFor === "A"
     ? `Wie viele ${thingPlural} bekommt ${nameA}?`
     : `Wie viele ${thingPlural} bekommt ${nameB}?`;
 }
 
-function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual,extraText,customPrompt}){
+function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual,extraText,customPrompt,customSolution}){
   return {
     type: withVisual ? "mc" : "plain-mc",
     cat, title,
@@ -502,6 +503,7 @@ function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corre
     withVisual,
     text: mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra:extraText}),
     prompt: customPrompt || questionText(thingPlural, askFor, nameA, nameB),
+    customSolution: customSolution || null,
     answers: shuffle([
       {t: correctValue + (unit || ""), ok:true},
       ...distractors.map(x => ({t: x + (unit || ""), ok:false}))
@@ -510,20 +512,24 @@ function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corre
 }
 
 /* =========================
-   Aufgabenliste
+   Steps
+   - 7 mit Animation
+   - 3 ohne Diagramm + 1 Schule (ohne Diagramm)
+   - Finish
 ========================= */
 const steps = [
   {
     type:"intro",
     cat:"Start",
-    title:"Aufteilen im Verhältnis",
+    title:"Worum geht es?",
     text: `
-      <p>Erst <b>7 Aufgaben</b> mit Diagramm + Animation.</p>
-      <p>Dann <b>4 Aufgaben</b> ohne Diagramm (nur Angabe + Lösung).</p>
+      <p><b>Hier geht es ums Aufteilen im Verhältnis.</b></p>
+      <p>Zum Beispiel: Eine Menge wird nicht gleich verteilt, sondern nach <b>1 : 2</b> oder <b>2 : 5</b>.</p>
+      <p>Du entscheidest: <b>Wie viele</b> bekommt jede Seite?</p>
     `
   },
 
-  /* 7 MIT Animation */
+  /* 7 MIT Animation (leichter Start 1:2) */
   mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 1", thingPlural:"Bonbons", total:9, unit:"",
     a:1,b:2, nameA:"Anna", nameB:"Ben", askFor:"A",
     correctValue:"3", distractors:["6","2","1"], withVisual:true
@@ -553,7 +559,7 @@ const steps = [
     correctValue:"10", distractors:["20","15","5"], withVisual:true
   }),
 
-  /* 4 OHNE Diagramm */
+  /* 3 OHNE Diagramm */
   mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 8", thingPlural:"Bonbons", total:40, unit:"",
     a:3,b:5, nameA:"Anna", nameB:"Ben", askFor:"B",
     correctValue:"25", distractors:["15","20","30"], withVisual:false
@@ -567,22 +573,23 @@ const steps = [
     correctValue:"49", distractors:["14","35","45"], withVisual:false
   }),
 
-  // ======= NUR DIESE AUFGABE ANDERS FORMULIERT =======
+  /* Schule – NUR diese anders formuliert + größere Zahlen */
   mkTaskMC({
     cat:"Ohne Diagramm",
     title:"Aufgabe 11 (Schule)",
     thingPlural:"Mädchen",
-    total:28,
+    total:560,
     unit:"",
     a:2,b:5,
     nameA:"Buben",
     nameB:"Mädchen",
     askFor:"B",
-    correctValue:"20",
-    distractors:["14","16","8"],
+    correctValue:"400",
+    distractors:["160","280","350"],
     withVisual:false,
-    extraText:"In einer Klasse sind 28 Schüler*innen. Das Verhältnis Buben : Mädchen ist 2 : 5.",
-    customPrompt:"Wie viele Mädchen sind in der Klasse?"
+    extraText:"In einer Schule sind 560 Schüler*innen. Das Verhältnis Buben : Mädchen ist 2 : 5.",
+    customPrompt:"Wie viele Mädchen sind in der Schule?",
+    customSolution:"Lösung: Es sind 400 Mädchen in der Schule."
   }),
 
   { type:"finish" }
@@ -620,7 +627,6 @@ const restartBtn = document.getElementById("restartBtn");
 function updateScore(){
   scoreEl.textContent = `Richtig: ${correctCount} / ${gradedCount}`;
 }
-
 function setMeta(){ metaEl.textContent = `${stepIndex + 1} / ${steps.length}`; }
 
 function clearScreen(){
@@ -653,18 +659,17 @@ function renderFinish(){
 
   finishWrapEl.style.display = "flex";
   finishWrapEl.innerHTML = `
-    <div class="finishTitle">${ok ? "Gratuliere! 🎉" : "Noch einmal versuchen 🙂"}</div>
+    <div class="finishTitle">${ok ? "Gratuliere! 🎉" : "Versuch es noch einmal 🙂"}</div>
     <div class="finishText">
       Du hast <b>${correctCount}</b> von <b>${gradedCount}</b> Aufgaben richtig gelöst.
     </div>
     <div class="finishSmall">
-      Tipp: Denk immer: <b>a + b</b> sind die Teile, dann <b>Gesamt : Teile</b> ist „pro Teil“.
+      Tipp: Denk immer an „Teile“ (a + b) und „pro Teil“ (Gesamt : Teile).
     </div>
     <div>
       <button class="btn" id="finishRestart">Neu starten</button>
     </div>
   `;
-
   document.getElementById("finishRestart").onclick = () => resetAll();
   nextBtn.disabled = true;
 }
@@ -687,11 +692,9 @@ function renderStep(){
   catEl.textContent = s.cat || "";
   titleEl.textContent = s.title || "";
 
-  if(s.type === "plain-mc"){
-    textEl.innerHTML = "";
-  } else {
-    textEl.innerHTML = s.text || "";
-  }
+  // Plain-Aufgaben nicht doppelt anzeigen:
+  if(s.type === "plain-mc") textEl.innerHTML = "";
+  else textEl.innerHTML = s.text || "";
 
   if(s.type === "intro"){
     nextBtn.disabled = false;
@@ -727,9 +730,8 @@ function afterAnswer(s, wasCorrect){
     const calc = splitTotal(s.total, aa, bb);
     const res = (s.askFor === "A") ? fmt(calc.A) : fmt(calc.B);
 
-    // bei Schule: Lösung passend formulieren
-    if(s.title.includes("(Schule)")){
-      solutionLineEl.textContent = `Lösung: Es sind ${res} Mädchen in der Klasse.`;
+    if(s.customSolution){
+      solutionLineEl.textContent = s.customSolution;
     } else {
       const who = (s.askFor === "A") ? s.nameA : s.nameB;
       solutionLineEl.textContent = `Lösung: ${who} bekommt ${res}${s.unit || ""}.`;
@@ -751,6 +753,7 @@ function renderMC(s){
     btn.onclick = () => {
       if(answered) return;
       answered = true;
+
       [...answersEl.children].forEach(el => el.classList.add("disabled"));
 
       if(a.ok){
