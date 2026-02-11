@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Teilungsverhältnisse – 7 mit Animation + 3 ohne (fix + leichter Start)</title>
+<title>Teilungsverhältnisse – 7 mit Animation + 4 ohne + Abschluss</title>
 
 <style>
   * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
@@ -15,8 +15,9 @@
   }
   h1 { margin: 6px 0 10px; text-align:center; font-size:18px; }
 
-  .top { display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
   .meta { font-size:12px; color:#555; }
+  .score { font-size:12px; color:#555; font-weight:900; }
 
   .card { margin-top:10px; border:1px solid #e5e5e5; border-radius:12px; padding:12px; background:#fff; }
   .cat { font-size:12px; font-weight:900; color:#444; margin-bottom:6px; }
@@ -198,6 +199,21 @@
   }
   .solutionLine.show{ display:block; }
 
+  /* Abschluss */
+  .finishBox{
+    margin-top:12px;
+    border:1px solid #e5e5e5;
+    border-radius:12px;
+    padding:14px;
+    background:#fcfcfc;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .finishTitle{ font-weight:1000; font-size:16px; }
+  .finishText{ font-weight:900; color:#222; }
+  .finishSmall{ font-size:12px; color:#555; font-weight:800; }
+
   @media (max-width: 980px){
     .stepsPanel{ min-width:320px; flex:1 1 340px; }
     .stepsGrid{ grid-template-columns: 1fr 1fr; }
@@ -212,6 +228,7 @@
   <h1>Teilungsverhältnisse – Aufteilen im Verhältnis</h1>
 
   <div class="top">
+    <div class="score" id="score">Richtig: 0 / 0</div>
     <div class="meta" id="meta">0 / 0</div>
   </div>
 
@@ -219,18 +236,17 @@
     <div class="cat" id="cat"></div>
     <div class="title" id="title"></div>
 
-    <!-- WICHTIG: Für Plain-Aufgaben wird dieser Text nicht doppelt gezeigt -->
     <div class="text" id="text"></div>
 
-    <!-- Visualbereich -->
     <div id="visualRow" class="visualRow" style="display:none;">
       <div id="visual" class="vizCard"></div>
       <div id="stepsPanel" class="stepsPanel"></div>
     </div>
 
-    <!-- Plainbereich -->
     <div id="plainWrap" class="plainWrap" style="display:none;"></div>
     <div class="solutionLine" id="solutionLine"></div>
+
+    <div id="finishWrap" class="finishBox" style="display:none;"></div>
 
     <div class="prompt" id="prompt" style="display:none;"></div>
     <div id="answers" class="answers"></div>
@@ -245,6 +261,11 @@
 </div>
 
 <script>
+/* =========================
+   Hinweis zur Rechtschreibung
+   "wie viele" wird getrennt geschrieben (so ist es hier überall).
+========================= */
+
 /* =========================
    Helpers
 ========================= */
@@ -368,19 +389,19 @@ function renderStepsPanel(panelEl, s){
     <div class="stepsGrid">
       <div class="stepBox stepHidden" id="step1Box">
         <div class="stepNr">Schritt 1</div>
-        <div class="stepText">Auf wieviele Teile wird aufgeteilt?</div>
+        <div class="stepText">Auf wie viele Teile wird aufgeteilt?</div>
         <div class="eq"><span class="hl">${aa}</span> + <span class="hl">${bb}</span> = <span class="hl">${sum}</span></div>
       </div>
 
       <div class="stepBox stepHidden" id="step2Box">
         <div class="stepNr">Schritt 2</div>
-        <div class="stepText">Wieviele ${s.thingPlural} sind ein Teil?</div>
+        <div class="stepText">Wie viele ${s.thingPlural} sind ein Teil?</div>
         <div class="eq"><span class="hl">${s.total}</span> : <span class="hl">${sum}</span> = <span class="hl">${one}</span>${s.unit || ""}</div>
       </div>
 
       <div class="stepBox stepHidden ${step3Class}" id="step3Box">
         <div class="stepNr">Schritt 3</div>
-        <div class="stepText">Wieviele ${s.thingPlural} bekommt ${targetName}?</div>
+        <div class="stepText">Wie viele ${s.thingPlural} bekommt ${targetName}?</div>
         <div class="eq ${eq3Class}"><span class="hl">${one}</span> · <span class="hl">${targetParts}</span> = <span class="hl">${targetResult}</span>${s.unit || ""}</div>
       </div>
     </div>
@@ -395,8 +416,6 @@ function showStepBox(id){
 
 /* =========================
    Post-Answer Ablauf
-   - Schritte bleiben langsam
-   - NUR das Eintragen pro Teil etwas schneller (wie gewünscht)
 ========================= */
 let timers = [];
 function stopAnimation(){
@@ -429,14 +448,8 @@ function animateFillPerPartThenStep3(s){
   clearPartMarks();
 
   const startDelay = 600;
-
-  // vorher: perPartDelay 2550 (sehr langsam)
-  // jetzt: deutlich schneller (z.B. 1550), aber immer noch ruhig
   const perPartDelay = 1550;
-
-  // highlight-halt etwas länger als die Hälfte
   const highlightHold = 950;
-
   const holdAfterFill = 1600;
 
   for(let i=0;i<sum;i++){
@@ -471,15 +484,15 @@ function animateFillPerPartThenStep3(s){
 /* =========================
    Aufgaben-Builder
 ========================= */
-function mkStoryText({thingPlural,total,unit,a,b,nameA,nameB}){
+function mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra}){
   return `
-    <p><b>Ich habe ${total}${unit} ${thingPlural}.</b></p>
-    <p>Ich teile sie im Verhältnis <b>${a}:${b}</b> auf.</p>
+    <p><b>${extra || `Ich habe ${total}${unit} ${thingPlural}.`}</b></p>
+    <p>Ich teile im Verhältnis <b>${a}:${b}</b> auf.</p>
     <p><b>${nameA} : ${nameB} = ${a} : ${b}</b></p>
   `;
 }
 
-function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual}){
+function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,correctValue,distractors,withVisual,extraText}){
   const question =
     askFor === "A" ? `Wie viele ${thingPlural} bekommt ${nameA}?` :
     `Wie viele ${thingPlural} bekommt ${nameB}?`;
@@ -489,7 +502,7 @@ function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corre
     cat, title,
     thingPlural, total, unit, a, b, nameA, nameB, askFor,
     withVisual,
-    text: mkStoryText({thingPlural,total,unit,a,b,nameA,nameB}),
+    text: mkStoryText({thingPlural,total,unit,a,b,nameA,nameB,extra:extraText}),
     prompt: question,
     answers: shuffle([
       {t: correctValue + (unit || ""), ok:true},
@@ -500,9 +513,7 @@ function mkTaskMC({cat,title,thingPlural,total,unit,a,b,nameA,nameB,askFor,corre
 
 /* =========================
    Aufgabenliste
-   - Erste beiden: 1:2
-   - Dann: 3:2, 2:3, 1:4 (steigend)
-   - 7 mit Visual + Animation, 3 ohne
+   7 mit Visual + 4 ohne (inkl. Schule 2:5)
 ========================= */
 const steps = [
   {
@@ -511,12 +522,12 @@ const steps = [
     title:"Aufteilen im Verhältnis",
     text: `
       <p>Erst <b>7 Aufgaben</b> mit Diagramm + Animation.</p>
-      <p>Dann <b>3 Aufgaben</b> ohne Diagramm (nur Angabe + Lösung).</p>
+      <p>Dann <b>4 Aufgaben</b> ohne Diagramm (nur Angabe + Lösung).</p>
       <p>Start ist extra leicht: zuerst <b>1:2</b>.</p>
     `
   },
 
-  /* 7 MIT Animation (leicht starten: 1:2, 1:2) */
+  /* 7 MIT Animation */
   mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 1", thingPlural:"Bonbons", total:9, unit:"",
     a:1,b:2, nameA:"Anna", nameB:"Ben", askFor:"A",
     correctValue:"3", distractors:["6","2","1"], withVisual:true
@@ -525,8 +536,6 @@ const steps = [
     a:1,b:2, nameA:"A", nameB:"B", askFor:"B",
     correctValue:"8", distractors:["4","6","10"], withVisual:true
   }),
-
-  /* dann 3:2 / 2:3 / 1:4 */
   mkTaskMC({ cat:"Mit Animation", title:"Aufgabe 3", thingPlural:"Punkte", total:25, unit:"",
     a:3,b:2, nameA:"A", nameB:"B", askFor:"B",
     correctValue:"10", distractors:["15","12","8"], withVisual:true
@@ -548,7 +557,7 @@ const steps = [
     correctValue:"10", distractors:["20","15","5"], withVisual:true
   }),
 
-  /* 3 OHNE Diagramm */
+  /* 4 OHNE Diagramm (inkl. Schule 2:5) */
   mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 8", thingPlural:"Bonbons", total:40, unit:"",
     a:3,b:5, nameA:"Anna", nameB:"Ben", askFor:"B",
     correctValue:"25", distractors:["15","20","30"], withVisual:false
@@ -561,15 +570,25 @@ const steps = [
     a:2,b:7, nameA:"A", nameB:"B", askFor:"B",
     correctValue:"49", distractors:["14","35","45"], withVisual:false
   }),
+  mkTaskMC({ cat:"Ohne Diagramm", title:"Aufgabe 11 (Schule)", thingPlural:"Schüler", total:28, unit:"",
+    a:2,b:5, nameA:"Buben", nameB:"Mädchen", askFor:"B",
+    correctValue:"20", distractors:["8","14","16"], withVisual:false,
+    extraText:"In einer Klasse sind 28 Schüler. Das Verhältnis Buben : Mädchen ist 2 : 5."
+  }),
+
+  { type:"finish" }
 ];
 
 /* =========================
-   UI
+   UI State
 ========================= */
 let stepIndex = 0;
 let answered = false;
+let correctCount = 0;
+let gradedCount = 0; // zählt nur Aufgaben (nicht Intro/Finish)
 
 const metaEl = document.getElementById("meta");
+const scoreEl = document.getElementById("score");
 const catEl = document.getElementById("cat");
 const titleEl = document.getElementById("title");
 const textEl = document.getElementById("text");
@@ -581,11 +600,17 @@ const stepsPanelEl = document.getElementById("stepsPanel");
 const plainWrapEl = document.getElementById("plainWrap");
 const solutionLineEl = document.getElementById("solutionLine");
 
+const finishWrapEl = document.getElementById("finishWrap");
+
 const promptEl = document.getElementById("prompt");
 const answersEl = document.getElementById("answers");
 const feedbackEl = document.getElementById("feedback");
 const nextBtn = document.getElementById("nextBtn");
 const restartBtn = document.getElementById("restartBtn");
+
+function updateScore(){
+  scoreEl.textContent = `Richtig: ${correctCount} / ${gradedCount}`;
+}
 
 function setMeta(){ metaEl.textContent = `${stepIndex + 1} / ${steps.length}`; }
 
@@ -608,19 +633,57 @@ function clearScreen(){
 
   solutionLineEl.classList.remove("show");
   solutionLineEl.textContent = "";
+
+  finishWrapEl.style.display = "none";
+  finishWrapEl.innerHTML = "";
+}
+
+function renderFinish(){
+  // einfache Schwelle: ab 70% "Gratuliere"
+  const percent = gradedCount > 0 ? (correctCount / gradedCount) : 0;
+  const ok = percent >= 0.7;
+
+  finishWrapEl.style.display = "flex";
+  finishWrapEl.innerHTML = `
+    <div class="finishTitle">${ok ? "Gratuliere! 🎉" : "Noch einmal versuchen 🙂"}</div>
+    <div class="finishText">
+      Du hast <b>${correctCount}</b> von <b>${gradedCount}</b> Aufgaben richtig gelöst.
+    </div>
+    <div class="finishSmall">
+      Tipp: Denk immer: <b>a + b</b> sind die Teile, dann <b>Gesamt : Teile</b> ist „pro Teil“.
+    </div>
+    <div>
+      <button class="btn" id="finishRestart">Neu starten</button>
+    </div>
+  `;
+
+  const btn = document.getElementById("finishRestart");
+  btn.onclick = () => resetAll();
+  nextBtn.disabled = true; // beim Abschluss kein Weiter
 }
 
 function renderStep(){
   clearScreen();
   setMeta();
+  updateScore();
 
   const s = steps[stepIndex];
+
+  // Finish
+  if(s.type === "finish"){
+    catEl.textContent = "Abschluss";
+    titleEl.textContent = "Fertig";
+    textEl.innerHTML = "";
+    renderFinish();
+    return;
+  }
+
   catEl.textContent = s.cat || "";
   titleEl.textContent = s.title || "";
 
   // FIX: Für Plain-Aufgaben NICHT oben im textEl anzeigen -> sonst doppelt
   if(s.type === "plain-mc"){
-    textEl.innerHTML = "";                 // kein doppelter Text
+    textEl.innerHTML = "";
   } else {
     textEl.innerHTML = s.text || "";
   }
@@ -635,7 +698,6 @@ function renderStep(){
     renderBarModel(visualCardEl, s.a, s.b, s.nameA || "A", s.nameB || "B");
     renderStepsPanel(stepsPanelEl, s);
   } else {
-    // Plain mode: Angabe hier anzeigen
     plainWrapEl.style.display = "block";
     plainWrapEl.innerHTML = s.text;
   }
@@ -648,18 +710,22 @@ function renderStep(){
   renderMC(s);
 }
 
-function afterAnswer(s){
+function afterAnswer(s, wasCorrect){
+  gradedCount++;
+  if(wasCorrect) correctCount++;
+  updateScore();
+
   if(s.type === "mc" && s.withVisual){
     runPostAnswerSequence(s);
-  } else {
-    // Plain: Lösung zeigen
+  } else if(s.type === "plain-mc"){
     const [aa, bb] = simplifyRatio(s.a, s.b);
     const calc = splitTotal(s.total, aa, bb);
     const res = (s.askFor === "A") ? fmt(calc.A) : fmt(calc.B);
     const who = (s.askFor === "A") ? s.nameA : s.nameB;
-    solutionLineEl.textContent = `Lösung: ${who} bekommt ${res}${s.unit || ""} ${s.thingPlural}.`;
+    solutionLineEl.textContent = `Lösung: ${who} bekommt ${res}${s.unit || ""}.`;
     solutionLineEl.classList.add("show");
   }
+
   nextBtn.disabled = false;
 }
 
@@ -688,23 +754,29 @@ function renderMC(s){
           if(found && found.ok) el.classList.add("correct");
         });
       }
-      afterAnswer(s);
+      afterAnswer(s, a.ok);
     };
 
     answersEl.appendChild(btn);
   });
 }
 
-/* Navigation */
+/* Navigation + Reset */
 nextBtn.onclick = () => {
   stepIndex++;
-  if(stepIndex >= steps.length) stepIndex = 0;
+  if(stepIndex >= steps.length) stepIndex = steps.length - 1;
   renderStep();
 };
-restartBtn.onclick = () => {
+
+function resetAll(){
   stepIndex = 0;
+  answered = false;
+  correctCount = 0;
+  gradedCount = 0;
   renderStep();
-};
+}
+
+restartBtn.onclick = () => resetAll();
 
 renderStep();
 </script>
